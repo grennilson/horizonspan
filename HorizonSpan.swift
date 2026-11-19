@@ -55,7 +55,7 @@ struct WallpaperLayout {
                width: display.frame.width, height: display.frame.height)
     }
 
-    func render(_ image: CGImage, for display: Display, to url: URL) throws {
+    func image(_ image: CGImage, for display: Display, background: CGColor = CGColor(gray: 0, alpha: 1)) throws -> CGImage {
         guard let context = CGContext(data: nil, width: display.pixelWidth, height: display.pixelHeight,
                                       bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -65,14 +65,19 @@ struct WallpaperLayout {
         let screen = rect(for: display)
         let xScale = CGFloat(display.pixelWidth) / screen.width
         let yScale = CGFloat(display.pixelHeight) / screen.height
-        context.setFillColor(NSColor.black.cgColor)
+        context.setFillColor(background)
         context.fill(CGRect(x: 0, y: 0, width: display.pixelWidth, height: display.pixelHeight))
         context.interpolationQuality = .high
         context.draw(image, in: CGRect(x: (imageRect.minX - screen.minX) * xScale,
                                        y: (screen.maxY - imageRect.maxY) * yScale,
                                        width: imageRect.width * xScale, height: imageRect.height * yScale))
-        guard let output = context.makeImage(),
-              let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+        guard let output = context.makeImage() else { throw WallpaperError.render(display.name) }
+        return output
+    }
+
+    func render(_ image: CGImage, for display: Display, to url: URL) throws {
+        let output = try self.image(image, for: display)
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
             throw WallpaperError.render(display.name)
         }
         CGImageDestinationAddImage(destination, output, nil)
@@ -126,14 +131,27 @@ final class ImageDropTarget: ObservableObject {
     @Published var isTargeted = false
 
     static func load(_ providers: [NSItemProvider],
-                     completion: @escaping (Result<URL, Error>) -> Void) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) })
-        else { return false }
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, error in
-            if let data, let url = URL(dataRepresentation: data, relativeTo: nil), url.isFileURL {
-                completion(.success(url))
-            } else {
-                completion(.failure(error ?? WallpaperError.image))
+                     completion: @escaping (Result<[URL], Error>) -> Void) -> Bool {
+        let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !files.isEmpty else { return false }
+        Task {
+            do {
+                var urls: [URL] = []
+                for provider in files {
+                    let url: URL = try await withCheckedThrowingContinuation { continuation in
+                        provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, error in
+                            if let data, let url = URL(dataRepresentation: data, relativeTo: nil), url.isFileURL {
+                                continuation.resume(returning: url)
+                            } else {
+                                continuation.resume(throwing: error ?? WallpaperError.image)
+                            }
+                        }
+                    }
+                    urls.append(url)
+                }
+                completion(.success(urls))
+            } catch {
+                completion(.failure(error))
             }
         }
         return true
@@ -147,6 +165,8 @@ final class WallpaperState: ObservableObject {
         let framing: ImageFraming
         let zoom: CGFloat
         let pan: CGSize
+        let design: WallpaperDesign
+        let groupImages: [Int: SourceImage]
     }
 
     private struct Edit {
@@ -165,13 +185,17 @@ final class WallpaperState: ObservableObject {
     @Published private var choosingImage = false
 
     var isBusy: Bool { isApplying || isProcessingAI }
-    var canChooseImage: Bool { !isBusy && !choosingImage && !showEdgeOptions }
+    var canChooseImage: Bool { !isBusy && !choosingImage && !showEdgeOptions && !showCombineImages && cropRect == nil && !showDesignOptions }
+    @Published var cropRect: CGRect?
+    @Published var showCombineImages = false
+    @Published var imagesToCombine: [SourceImage] = []
+    @Published var combinationArrangement = ImageArrangement.horizontal
     var undoTitle: String { undoEdits.last.map { "Undo \($0.name)" } ?? "Undo" }
     var redoTitle: String { redoEdits.last.map { "Redo \($0.name)" } ?? "Redo" }
     var canUndo: Bool { canChooseImage && !undoEdits.isEmpty }
     var canRedo: Bool { canChooseImage && !redoEdits.isEmpty }
     private var currentImage: FramedImage? {
-        source.map { FramedImage(source: $0, framing: framing, zoom: zoom, pan: pan) }
+        source.map { FramedImage(source: $0, framing: framing, zoom: zoom, pan: pan, design: design, groupImages: groupImages) }
     }
     @Published var framing: ImageFraming = .fit
     @Published var zoom: CGFloat = 1
@@ -184,18 +208,53 @@ final class WallpaperState: ObservableObject {
     @Published private(set) var saved: SavedWallpaper?
     @Published private(set) var loginStatus = SMAppService.mainApp.status
     @Published var loginError: String?
-    private let store = try? WallpaperStore.userStore()
+    let store = try? WallpaperStore.userStore()
+    @Published var design = WallpaperDesign.standard
+    @Published var groupImages: [Int: SourceImage] = [:]
+    @Published var showDesignOptions = false
+    @Published var libraryEntries: [LibraryEntry] = []
+    @Published var libraryIndex = LibraryIndex()
+    @Published var selectedLibraryID: UUID?
+    @Published var libraryTitle = ""
+    @Published var setupName = "My Desk"
+    @Published var featureError: String?
+    @Published var autoMatchSetups = UserDefaults.standard.bool(forKey: "autoMatchSetups") {
+        didSet { UserDefaults.standard.set(autoMatchSetups, forKey: "autoMatchSetups") }
+    }
+    @Published var rotationEnabled = UserDefaults.standard.bool(forKey: "rotateFavorites") {
+        didSet {
+            UserDefaults.standard.set(rotationEnabled, forKey: "rotateFavorites")
+            resetRotationClock()
+        }
+    }
+    @Published var rotationMinutes = max(1, UserDefaults.standard.integer(forKey: "rotationMinutes")) {
+        didSet {
+            UserDefaults.standard.set(rotationMinutes, forKey: "rotationMinutes")
+            resetRotationClock()
+        }
+    }
+    var nextRotation = Date.distantFuture
+    @Published var updateStatus = ""
+    @Published var updateURL: URL?
+    @Published var checkingUpdates = false
     private var observers = Set<AnyCancellable>()
     private var restoreTask: Task<Void, Never>?
 
-    init() {
+    init(observeSystem: Bool = true) {
         saved = store?.current()
+        guard observeSystem else { return }
+        refreshLibrary()
+        resetRotationClock()
+        Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+            .sink { [weak self] _ in self?.rotateIfDue() }
+            .store(in: &observers)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.screensDidWakeNotification))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.displays = Display.connected()
-                self?.scheduleRestore(when: WallpaperPreferences.restoreOnDisplays)
+                if self?.cropRect != nil { self?.beginCrop() }
+                self?.scheduleRestore(matchSetup: true) { WallpaperPreferences.restoreOnDisplays() || self?.autoMatchSetups == true }
             }
             .store(in: &observers)
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)
@@ -206,22 +265,86 @@ final class WallpaperState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshLoginStatus() }
             .store(in: &observers)
-        scheduleRestore {
-            WallpaperPreferences.restoreOnDisplays() || WallpaperPreferences.syncSpaces()
+        scheduleRestore(matchSetup: true) {
+            WallpaperPreferences.restoreOnDisplays() || WallpaperPreferences.syncSpaces() || self.autoMatchSetups
         }
     }
 
     func chooseImage() {
         guard canChooseImage else { return }
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
+        panel.allowedContentTypes = [.image, .screenSpanWallpaper]
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         choosingImage = true
-        panel.begin { [weak self] response in
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard let self else { return }
             self.choosingImage = false
-            if response == .OK, let url = panel.url { self.loadImage(url) }
+            if response == .OK {
+                DispatchQueue.main.async { self.loadImages(panel.urls) }
+            }
+        }
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+        } else {
+            panel.begin(completionHandler: completion)
+        }
+    }
+
+    func loadImages(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        if urls.count == 1 {
+            loadImage(urls[0])
+            return
+        }
+        guard urls.allSatisfy({ $0.pathExtension.lowercased() != "ssw" }) else {
+            errorMessage = "Open one wallpaper project at a time, or select image files to combine."
+            return
+        }
+        do {
+            let images = try urls.sorted {
+                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+            }.map { url in
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                return try SourceImage(url: url)
+            }
+            imagesToCombine = images
+            combinationArrangement = .horizontal
+            showCombineImages = true
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func combineImages(_ arrangement: ImageArrangement) {
+        guard !isBusy, imagesToCombine.count >= 2 else { return }
+        let images = imagesToCombine
+        showCombineImages = false
+        isProcessingAI = true
+        status = "Combining images…"
+        Task {
+            defer { isProcessingAI = false }
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try arrangement.combine(images)
+                }.value
+                source = result
+                design = .standard
+                groupImages = [:]
+                original = nil
+                undoEdits.removeAll()
+                redoEdits.removeAll()
+                showOriginal = false
+                framing = .fit
+                zoom = 1
+                pan = .zero
+                edgeDescription = ""
+                imagesToCombine = []
+                status = "Combined \(images.count) images"
+            } catch {
+                imagesToCombine = []
+                status = ""
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -229,16 +352,21 @@ final class WallpaperState: ObservableObject {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
-            source = try SourceImage(url: url)
+            let project = url.pathExtension.lowercased() == "ssw" ? try WallpaperProject.open(url) : nil
+            let loaded = try project?.0 ?? SourceImage(url: url)
+            let assets = try project.map { try WallpaperProject.assets(at: url, settings: $0.1) } ?? [:]
+            source = loaded
+            design = project?.1.design ?? .standard
+            groupImages = assets
             original = nil
             undoEdits.removeAll()
             redoEdits.removeAll()
             showOriginal = false
             edgeDescription = ""
-            framing = .fit
-            zoom = 1
-            pan = .zero
-            status = ""
+            framing = project?.1.framing ?? .fit
+            zoom = project?.1.zoom ?? 1
+            pan = project?.1.pan ?? .zero
+            status = project == nil ? "" : "Opened saved project"
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -254,6 +382,32 @@ final class WallpaperState: ObservableObject {
             pan = .zero
         }
         status = action.result
+    }
+
+    func beginCrop() {
+        guard let source, !displays.isEmpty, !isBusy, !showOriginal else { return }
+        let layout = WallpaperLayout(displays: displays, imageSize: source.size, framing: framing, zoom: zoom, pan: pan)
+        let scale = layout.imageRect.width / source.size.width
+        let visible = CGRect(x: -layout.imageRect.minX / scale, y: -layout.imageRect.minY / scale,
+                             width: layout.bounds.width / scale, height: layout.bounds.height / scale)
+        let imageBounds = CGRect(origin: .zero, size: source.size)
+        cropRect = imageBounds.contains(visible) ? visible :
+            CropGeometry.fitted(in: source.size, ratio: layout.bounds.width / layout.bounds.height)
+        status = ""
+    }
+
+    func applyCrop() {
+        guard !isBusy, let currentImage, let cropRect,
+              let image = currentImage.source.image.cropping(to: CropGeometry.pixels(cropRect, in: currentImage.source.image))
+        else { return }
+        recordEdit("Crop", currentImage)
+        original = original ?? currentImage
+        source = SourceImage(filename: currentImage.source.filename, image: image)
+        framing = .fit
+        zoom = 1
+        pan = .zero
+        self.cropRect = nil
+        status = "Cropped image"
     }
 
     func revertToOriginal() {
@@ -297,48 +451,80 @@ final class WallpaperState: ObservableObject {
         framing = image.framing
         zoom = image.zoom
         pan = image.pan
+        design = image.design
+        groupImages = image.groupImages
     }
 
     func apply() {
-        let targets = Display.connected()
-        guard let source, !targets.isEmpty, !isBusy, !showOriginal else { return }
-        guard let store else {
-            errorMessage = WallpaperError.save.localizedDescription
-            return
-        }
-        let wallpaper = SavedWallpaper(source: source, framing: framing, zoom: zoom, pan: pan)
+        guard let source, !displays.isEmpty, !isBusy, !showOriginal, cropRect == nil, !showDesignOptions else { return }
+        let wallpaper = SavedWallpaper(source: source, framing: framing, zoom: zoom, pan: pan, design: currentDesign)
         isApplying = true
-        status = ""
         Task {
             defer { isApplying = false }
             do {
-                let urls = try await Task.detached(priority: .userInitiated) {
-                    try store.store(source.image, as: wallpaper)
-                    return try store.render(source.image, wallpaper: wallpaper, displays: targets)
+                try await applyPrepared(source: source, wallpaper: wallpaper, assets: groupImages, archive: true)
+                refreshLibrary()
+            } catch { errorMessage = error.localizedDescription }
+        }
+    }
+
+    func applyPrepared(source: SourceImage, wallpaper: SavedWallpaper, assets: [Int: SourceImage], archive: Bool) async throws {
+        guard let store else { throw WallpaperError.save }
+        let targets = Display.connected()
+        guard !targets.isEmpty else { throw WallpaperError.displays }
+        let urls = try await Task.detached(priority: .userInitiated) {
+            try store.store(source.image, as: wallpaper, assets: assets)
+            if archive {
+                _ = try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets, assets: assets)
+            }
+            return try store.render(source.image, wallpaper: wallpaper, displays: targets, assets: assets)
+        }.value
+        try assign(urls, to: targets, skipMatching: false) {
+            do { try store.select(wallpaper) } catch { throw WallpaperError.save }
+        }
+        saved = wallpaper
+        status = "Applied to \(targets.count) \(targets.count == 1 ? "display" : "displays")"
+    }
+
+    func saveProject() {
+        guard let source, !isBusy, !showOriginal, !displays.isEmpty, cropRect == nil else { return }
+        let wallpaper = SavedWallpaper(source: source, framing: framing, zoom: zoom, pan: pan, design: currentDesign)
+        let targets = displays
+        let assets = groupImages
+        isApplying = true
+        status = "Saving project…"
+        Task {
+            defer { isApplying = false }
+            do {
+                let url = try await Task.detached(priority: .userInitiated) {
+                    try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets, assets: assets)
                 }.value
-                try assign(urls, to: targets, skipMatching: false) {
-                    do { try store.select(wallpaper) }
-                    catch { throw WallpaperError.save }
-                }
-                saved = wallpaper
-                status = "Applied to \(targets.count) \(targets.count == 1 ? "display" : "displays")"
+                refreshLibrary()
+                status = "Saved in Pictures"
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
-                errorMessage = error.localizedDescription
+                status = ""
+                errorMessage = "Couldn’t save the wallpaper project. \(error.localizedDescription)"
             }
         }
     }
 
-    private func scheduleRestore(when enabled: @escaping () -> Bool) {
+    func showWallpaperLibrary() {
+        do { NSWorkspace.shared.open(try WallpaperProject.library()) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    private func scheduleRestore(matchSetup: Bool = false, when enabled: @escaping () -> Bool) {
         guard saved != nil, enabled() else { return }
         restoreTask?.cancel()
         restoreTask = Task { [weak self] in
             // A display or Space change can finish after macOS sends the notification.
             try? await Task.sleep(for: .milliseconds(650))
             guard !Task.isCancelled, enabled() else { return }
-            await self?.restore(force: true, when: enabled)
+            await self?.restore(force: true, matchSetup: matchSetup, when: enabled)
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled, enabled() else { return }
-            await self?.restore(force: false, when: enabled)
+            await self?.restore(force: false, matchSetup: matchSetup, when: enabled)
         }
     }
 
@@ -347,7 +533,7 @@ final class WallpaperState: ObservableObject {
         restoreTask = Task { await restore(force: true, reportResult: true) }
     }
 
-    private func restore(force: Bool, reportResult: Bool = false, when enabled: () -> Bool = { true }) async {
+    private func restore(force: Bool, reportResult: Bool = false, matchSetup: Bool = false, when enabled: () -> Bool = { true }) async {
         guard let store, let wallpaper = saved else { return }
         while isApplying {
             try? await Task.sleep(for: .milliseconds(150))
@@ -355,19 +541,40 @@ final class WallpaperState: ObservableObject {
         }
         guard wallpaper.id == saved?.id, !Task.isCancelled, enabled() else { return }
         let targets = Display.connected()
+        if matchSetup, autoMatchSetups, let entry = matchedSetup(for: targets), entry.id != wallpaper.id {
+            isApplying = true
+            defer { isApplying = false }
+            do {
+                let (source, selection, assets) = try await Self.readProject(entry.url)
+                guard !Task.isCancelled, enabled() else { return }
+                try await applyPrepared(source: source, wallpaper: selection, assets: assets, archive: false)
+                if self.source == nil {
+                    self.source = source
+                    design = selection.design ?? .standard
+                    groupImages = assets
+                    framing = selection.framing
+                    zoom = selection.zoom
+                    pan = selection.pan
+                }
+            } catch { status = "Couldn’t restore the saved monitor setup" }
+            return
+        }
         guard !targets.isEmpty else { return }
         isApplying = true
         defer { isApplying = false }
         do {
-            let (source, urls) = try await Task.detached(priority: .utility) {
+            let (source, urls, assets) = try await Task.detached(priority: .utility) {
                 let source = try store.source(for: wallpaper)
-                let urls = try store.render(source.image, wallpaper: wallpaper, displays: targets)
-                return (source, urls)
+                let assets = try store.assets(for: wallpaper)
+                let urls = try store.render(source.image, wallpaper: wallpaper, displays: targets, assets: assets)
+                return (source, urls, assets)
             }.value
             guard !Task.isCancelled, enabled() else { return }
             try assign(urls, to: targets, skipMatching: !force)
             if self.source == nil {
                 self.source = source
+                design = wallpaper.design ?? .standard
+                groupImages = assets
                 framing = wallpaper.framing
                 zoom = wallpaper.zoom
                 pan = wallpaper.pan
@@ -398,6 +605,7 @@ final class WallpaperState: ObservableObject {
 }
 
 struct WallpaperView: View {
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: WallpaperState
     @GestureState private var drag = CGSize.zero
     @StateObject private var dropTarget = ImageDropTarget()
@@ -414,10 +622,11 @@ struct WallpaperView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ScreenSpan Wallpaper").font(.title.bold())
                     Text(source.map { "\($0.filename) · \($0.image.width) × \($0.image.height)" }
-                         ?? "Choose one image for all your displays.")
+                         ?? "Choose images for your wallpaper.")
                         .foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
+                Button("Library") { openWindow(id: "library") }
                 Button("Choose Image…", action: model.chooseImage)
                     .keyboardShortcut("o")
                     .onDrop(of: [.fileURL], isTargeted: nil, perform: receiveImageDrop)
@@ -425,7 +634,24 @@ struct WallpaperView: View {
             }
 
             GeometryReader { geometry in
-                if let source, !displays.isEmpty {
+                if let source, model.cropRect != nil {
+                    CropPreview(image: source.image, selection: Binding(
+                        get: { model.cropRect ?? .zero }, set: { model.cropRect = $0 }))
+                    .accessibilityLabel("Crop preview. Drag inside the rectangle to move it, drag a corner to resize, or scroll to zoom.")
+                } else if let source, !displays.isEmpty, (comparison?.design ?? model.currentDesign) != .standard {
+                    DesignedPreview(source: source, wallpaper: SavedWallpaper(source: source, framing: framing,
+                        zoom: zoom, pan: pan, design: comparison?.design ?? model.currentDesign),
+                        displays: displays, assets: comparison?.groupImages ?? model.groupImages)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture().onEnded { value in
+                            guard !model.isBusy, !model.showOriginal else { return }
+                            let bounds = displays.reduce(CGRect.null) { $0.union($1.frame) }
+                            let scale = min(max(1, geometry.size.width - 44) / bounds.width,
+                                            max(1, geometry.size.height - 44) / bounds.height)
+                            model.pan.width += value.translation.width / (bounds.width * scale)
+                            model.pan.height += value.translation.height / (bounds.height * scale)
+                        })
+                } else if let source, !displays.isEmpty {
                     let layout = WallpaperLayout(displays: displays, imageSize: source.size, framing: framing, zoom: zoom, pan: pan)
                     let scale = min(max(geometry.size.width - 44, 1) / layout.bounds.width,
                                     max(geometry.size.height - 44, 1) / layout.bounds.height)
@@ -474,7 +700,7 @@ struct WallpaperView: View {
                 } else {
                     VStack(spacing: 10) {
                         Image(systemName: "display.2").font(.system(size: 35))
-                        Text(displays.isEmpty ? "No displays detected" : "Drag an image here")
+                        Text(displays.isEmpty ? "No displays detected" : "Drag images here")
                         if !displays.isEmpty {
                             Button("Choose Image…", action: model.chooseImage)
                                 .disabled(!model.canChooseImage)
@@ -499,7 +725,9 @@ struct WallpaperView: View {
                     Text("\(index + 1)  \(display.name)").font(.caption).lineLimit(1)
                 }
                 Spacer()
-                if source != nil && !model.showOriginal {
+                if model.cropRect != nil {
+                    Text("Drag corners to crop · Scroll to zoom").font(.caption).foregroundStyle(.secondary)
+                } else if source != nil && !model.showOriginal {
                     Text("Drag the preview to reposition").font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -516,9 +744,22 @@ struct WallpaperView: View {
                     .pickerStyle(.segmented)
                     .fixedSize()
                     .help("Fit keeps the entire photo visible at minimum zoom. Fill covers the displays and may crop the photo.")
-                    .disabled(model.isBusy || model.showOriginal)
+                    .disabled(model.isBusy || model.showOriginal || model.cropRect != nil)
                     Spacer()
+                    if let crop = model.cropRect {
+                        Text(CropGeometry.ratioLabel(displays.reduce(CGRect.null) { $0.union($1.frame) }.size))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("\(Int(crop.width)) × \(Int(crop.height))").font(.caption).foregroundStyle(.secondary)
+                        Button("Cancel Crop") { model.cropRect = nil }
+                        Button("Apply Crop", action: model.applyCrop).buttonStyle(.borderedProminent)
+                            .disabled(model.isBusy)
+                    } else {
+                        Button("Crop Image", action: model.beginCrop)
+                            .disabled(model.isBusy || model.showOriginal || displays.isEmpty)
+                    }
                 }
+                Button("Displays & Appearance…") { model.showDesignOptions = true }
+                    .disabled(model.isBusy || model.showOriginal || model.cropRect != nil)
                 imageTools(for: selected)
             }
             Divider()
@@ -530,14 +771,16 @@ struct WallpaperView: View {
                 }), in: 1...3)
                 .frame(width: 120)
                 .accessibilityLabel("Zoom")
-                .disabled(model.showOriginal)
+                .disabled(model.showOriginal || model.cropRect != nil)
                 Button("Reset", action: resetFramingPosition)
-                    .disabled(model.showOriginal)
+                    .disabled(model.showOriginal || model.cropRect != nil)
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Text(model.status).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                Button("Save Project", action: model.saveProject)
+                    .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
                 Button("Apply Wallpaper", action: model.apply).buttonStyle(.borderedProminent)
-                    .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal)
+                    .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
             }
             .disabled(model.source == nil || model.isBusy)
         }
@@ -545,6 +788,12 @@ struct WallpaperView: View {
         .frame(minWidth: 735, minHeight: 490)
         .sheet(isPresented: $model.showEdgeOptions) {
             edgeOptions
+        }
+        .sheet(isPresented: $model.showCombineImages) {
+            CombineImagesView(model: model)
+        }
+        .sheet(isPresented: $model.showDesignOptions) {
+            WallpaperDesignView(model: model)
         }
         .alert("ScreenSpan Wallpaper", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
@@ -563,8 +812,8 @@ struct WallpaperView: View {
             DispatchQueue.main.async {
                 guard model.canChooseImage else { return }
                 switch result {
-                case .success(let url): model.loadImage(url)
-                case .failure: model.errorMessage = "Drop an image file from Finder."
+                case .success(let urls): model.loadImages(urls)
+                case .failure: model.errorMessage = "Drop image files from Finder."
                 }
             }
         }
@@ -597,7 +846,7 @@ struct WallpaperView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .disabled(model.isBusy)
+        .disabled(model.isBusy || model.cropRect != nil)
     }
 
     private var edgeOptions: some View {
@@ -672,7 +921,7 @@ struct WallpaperView: View {
 }
 
 extension WallpaperState {
-    private func assign(_ urls: [URL], to targets: [Display], skipMatching: Bool,
+    func assign(_ urls: [URL], to targets: [Display], skipMatching: Bool,
                         commit: () throws -> Void = {}) throws {
         let screens = NSScreen.screens
         let current = Display.connected()
@@ -743,10 +992,27 @@ struct WallpaperSettings: View {
             Section("Wallpaper") {
                 Toggle("Sync wallpaper across macOS desktops", isOn: $syncSpaces)
                 Toggle("Reapply wallpaper when displays change or wake", isOn: $restoreOnDisplays)
+                Toggle("Automatically match saved monitor setups", isOn: $model.autoMatchSetups)
+            }
+            Section("Rotation") {
+                Toggle("Rotate favorite wallpapers", isOn: $model.rotationEnabled)
+                Picker("Change every", selection: $model.rotationMinutes) {
+                    ForEach([1, 5, 15, 30, 60, 120], id: \.self) {
+                        Text($0 == 1 ? "1 minute" : "\($0) minutes").tag($0)
+                    }
+                }
+                Text("Favorite projects in the library to include them in rotation.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Updates") {
+                Button("Check for Updates", action: model.checkForUpdates).disabled(model.checkingUpdates)
+                if !model.updateStatus.isEmpty { Text(model.updateStatus).font(.caption) }
+                if let url = model.updateURL {
+                    Button("View Release") { NSWorkspace.shared.open(url) }
+                }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 470, height: 285)
+        .frame(width: 520, height: 570)
         .onAppear(perform: model.refreshLoginStatus)
         .alert("Open at Login", isPresented: Binding(get: { model.loginError != nil },
                                                     set: { if !$0 { model.loginError = nil } })) {
@@ -774,6 +1040,8 @@ struct WallpaperMenu: View {
         .disabled(!model.canChooseImage)
         Button("Reapply Saved Wallpaper", action: model.reapplySavedWallpaper)
             .disabled(model.saved == nil || model.isApplying || model.displays.isEmpty)
+        Button("Wallpaper Library…") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
+        Button("Next Wallpaper") { model.nextWallpaper() }.disabled(model.isBusy)
         Divider()
         Button("Settings…") {
             openWindow(id: "settings")
@@ -806,6 +1074,12 @@ struct WallpaperCommands: Commands {
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 .disabled(!model.canRedo)
         }
+        CommandGroup(after: .newItem) {
+            Button("Save Wallpaper Project", action: model.saveProject)
+                .keyboardShortcut("s")
+                .disabled(model.source == nil || model.isBusy || model.showOriginal || model.displays.isEmpty || model.cropRect != nil)
+            Button("Wallpaper Library…") { openWindow(id: "library") }
+        }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { openWindow(id: "settings") }
                 .keyboardShortcut(",")
@@ -817,7 +1091,9 @@ final class HorizonSpanDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
+#if !SCREENSPAN_TESTING
 @main
+#endif
 struct HorizonSpanApp: App {
     @NSApplicationDelegateAdaptor(HorizonSpanDelegate.self) private var delegate
     @StateObject private var model = WallpaperState()
@@ -826,6 +1102,13 @@ struct HorizonSpanApp: App {
     var body: some Scene {
         WindowGroup("ScreenSpan Wallpaper", id: "main", for: Bool.self) { _ in
             WallpaperView(model: model)
+                .onOpenURL { url in
+                    guard model.canChooseImage else {
+                        model.errorMessage = "Finish the current operation before opening a project."
+                        return
+                    }
+                    model.loadImage(url)
+                }
         } defaultValue: {
             true
         }
@@ -837,6 +1120,10 @@ struct HorizonSpanApp: App {
             WallpaperSettings(model: model)
         }
         .windowResizability(.contentSize)
+
+        Window("Wallpaper Library", id: "library") { WallpaperLibraryView(model: model) }
+            .defaultSize(width: 820, height: 580)
+            .windowResizability(.contentMinSize)
 
         MenuBarExtra("ScreenSpan Wallpaper", systemImage: "display.2", isInserted: $showMenuBarIcon) {
             WallpaperMenu(model: model)

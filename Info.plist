@@ -8,8 +8,25 @@
     <key>CFBundleName</key><string>ScreenSpan Wallpaper</string>
     <key>CFBundleDisplayName</key><string>ScreenSpan Wallpaper</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.3.5</string>
-    <key>CFBundleVersion</key><string>10</string>
+    <key>CFBundleShortVersionString</key><string>1.4.0</string>
+    <key>CFBundleVersion</key><string>14</string>
+    <key>CFBundleDocumentTypes</key>
+    <array><dict>
+        <key>CFBundleTypeName</key><string>ScreenSpan Wallpaper Project</string>
+        <key>CFBundleTypeRole</key><string>Editor</string>
+        <key>LSHandlerRank</key><string>Owner</string>
+        <key>LSItemContentTypes</key><array><string>io.github.grennilson.screenspan.wallpaper</string></array>
+        <key>LSTypeIsPackage</key><true/>
+    </dict></array>
+    <key>UTExportedTypeDeclarations</key>
+    <array><dict>
+        <key>UTTypeIdentifier</key><string>io.github.grennilson.screenspan.wallpaper</string>
+        <key>UTTypeDescription</key><string>ScreenSpan Wallpaper Project</string>
+        <key>UTTypeConformsTo</key><array><string>com.apple.package</string></array>
+        <key>UTTypeTagSpecification</key><dict>
+            <key>public.filename-extension</key><array><string>ssw</string></array>
+        </dict>
+    </dict></array>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict>

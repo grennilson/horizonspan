@@ -9,13 +9,15 @@ struct SavedWallpaper: Codable {
     let framing: ImageFraming
     let zoom: CGFloat
     let pan: CGSize
+    let design: WallpaperDesign?
 
-    init(source: SourceImage, framing: ImageFraming, zoom: CGFloat, pan: CGSize) {
+    init(source: SourceImage, framing: ImageFraming, zoom: CGFloat, pan: CGSize, design: WallpaperDesign? = nil) {
         id = UUID()
         filename = source.filename
         self.framing = framing
         self.zoom = zoom
         self.pan = pan
+        self.design = design
     }
 }
 
@@ -39,7 +41,7 @@ struct WallpaperStore {
         try JSONEncoder().encode(wallpaper).write(to: selection, options: .atomic)
     }
 
-    func store(_ image: CGImage, as wallpaper: SavedWallpaper) throws {
+    func store(_ image: CGImage, as wallpaper: SavedWallpaper, assets: [Int: SourceImage] = [:]) throws {
         let folder = directory(for: wallpaper)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("Source.png")
@@ -47,6 +49,11 @@ struct WallpaperStore {
         else { throw WallpaperError.save }
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { throw WallpaperError.save }
+        try WallpaperProject.writeAssets(assets, settings: wallpaper, to: folder)
+    }
+
+    func assets(for wallpaper: SavedWallpaper) throws -> [Int: SourceImage] {
+        try WallpaperProject.assets(at: directory(for: wallpaper), settings: wallpaper)
     }
 
     func source(for wallpaper: SavedWallpaper) throws -> SourceImage {
@@ -56,7 +63,7 @@ struct WallpaperStore {
         return SourceImage(filename: wallpaper.filename, image: image)
     }
 
-    func render(_ image: CGImage, wallpaper: SavedWallpaper, displays: [Display]) throws -> [URL] {
+    func render(_ image: CGImage, wallpaper: SavedWallpaper, displays: [Display], assets: [Int: SourceImage] = [:]) throws -> [URL] {
         let geometry = displays.map {
             "\($0.id):\($0.frame.minX),\($0.frame.minY),\($0.frame.width),\($0.frame.height):\($0.pixelWidth)x\($0.pixelHeight)"
         }.joined(separator: "|")
@@ -70,10 +77,9 @@ struct WallpaperStore {
         let staging = folder.appendingPathComponent(".\(UUID().uuidString)", isDirectory: true)
         try files.createDirectory(at: staging, withIntermediateDirectories: false)
         defer { try? files.removeItem(at: staging) }
-        let layout = WallpaperLayout(displays: displays, imageSize: CGSize(width: image.width, height: image.height),
-                                     framing: wallpaper.framing, zoom: wallpaper.zoom, pan: wallpaper.pan)
-        for (display, url) in zip(displays, urls) {
-            try layout.render(image, for: display, to: staging.appendingPathComponent(url.lastPathComponent))
+        let images = try WallpaperRenderer.images(source: image, wallpaper: wallpaper, displays: displays, assets: assets)
+        for (image, url) in zip(images, urls) {
+            try WallpaperProject.write(image, to: staging.appendingPathComponent(url.lastPathComponent))
         }
         if files.fileExists(atPath: output.path) {
             _ = try files.replaceItemAt(output, withItemAt: staging)
