@@ -43,15 +43,15 @@ namespace ScreenSpan
             ((ToolStripMenuItem)edit.DropDownItems.Add("Redo", null, (s, e) => Redo())).ShortcutKeys = Keys.Control | Keys.Y;
             menu.Items.Add(edit);
             menu.Items.Add("Settings", null, (s, e) => Settings());
-            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.0\nSpan, crop, extend and organize desktop wallpapers.", "About"));
+            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.1\nSpan, crop, extend and organize desktop wallpapers.", "About"));
             MainMenuStrip = menu;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 5 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            var top = new FlowLayoutPanel { Dock = DockStyle.Fill };
+            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
             top.Controls.Add(Button("Choose Images…", Choose));
             top.Controls.Add(Button("Saved Wallpapers…", Library));
             top.Controls.Add(info);
@@ -62,7 +62,7 @@ namespace ScreenSpan
             preview.BeforeEdit += Push;
             preview.Changed += () => { state.Frame = preview.Frame; UpdateControls(); };
             layout.Controls.Add(preview, 0, 1);
-            var frame = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
+            var frame = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 8, 0, 0) };
             frame.Controls.Add(Button("Fit Entire Photo", () => ChangeFrame("fit")));
             frame.Controls.Add(Button("Fill & Crop", () => ChangeFrame("fill")));
             crop = Button("Crop…", () => { preview.BeginCrop(); UpdateControls(); });
@@ -73,7 +73,7 @@ namespace ScreenSpan
             frame.Controls.Add(cancelCrop);
             frame.Controls.Add(Button("Reset Framing", () => { Push(); state.Frame = new Framing(); RefreshImage(false); }));
             layout.Controls.Add(frame, 0, 2);
-            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 6, 0, 0) };
             undo = Button("Undo", Undo);
             redo = Button("Redo", Redo);
             actions.Controls.Add(undo);

@@ -115,6 +115,8 @@ namespace ScreenSpan
                     {
                         window.CheckEditor();
                         lines.Add("PASS: real editor crop, Undo/Redo, original comparison and reopen");
+                        window.CheckLayout();
+                        lines.Add("PASS: wrapped editor controls remain visible at narrow width and enlarged text");
                     }
                 }
                 var monitors = Desktop.Monitors();
@@ -158,6 +160,27 @@ namespace ScreenSpan
     }
     public sealed partial class MainWindow
     {
+        internal void CheckLayout()
+        {
+            Show();
+            System.Windows.Forms.Application.DoEvents();
+            Scale(new SizeF(1.5f, 1.5f));
+            MinimumSize = new Size(820, 620);
+            Size = MinimumSize;
+            foreach (bool cropping in new[] { false, true })
+            {
+                preview.Cropping = cropping;
+                UpdateControls();
+                PerformLayout();
+                System.Windows.Forms.Application.DoEvents();
+                foreach (var panel in Controls.OfType<System.Windows.Forms.TableLayoutPanel>().SelectMany(p => p.Controls.OfType<System.Windows.Forms.FlowLayoutPanel>()))
+                    foreach (System.Windows.Forms.Control control in panel.Controls)
+                        if (control.Visible && !panel.ClientRectangle.Contains(control.Bounds))
+                            throw new Exception("Editor control clipped: " + control.Text);
+            }
+            preview.Cropping = false;
+            Hide();
+        }
         internal void CheckEditor()
         {
             int width = preview.Image!.Width, height = preview.Image.Height;

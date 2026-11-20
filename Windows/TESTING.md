@@ -1,10 +1,10 @@
-# Windows 1.0.0 validation
+# Windows 1.0.1 validation
 
 Validation performed on November 20, 2026.
 
 ## Completed
 
-- Clean compilation with Microsoft's .NET 10 SDK, targeting x64 .NET Framework 4.8. Application and setup metadata use version 1.0.0.
+- Clean compilation with Microsoft's .NET 10 SDK, targeting x64 .NET Framework 4.8. Application and setup metadata use version 1.0.1.
 - 27 platform-independent checks: two, three and four monitors; negative origins; portrait fit; crop bounds and ratio; pan clamping; Undo/Redo; design deep copies and validation; AI output planning; monitor-profile keys; Windows-only version checks.
 - Windows 11 Pro on the Plex development machine: renderer colors, independent groups, dimming, format 1 import, format 2 save/reopen with group assets, exports and thumbnail, missing-asset rejection, horizontal/vertical combination, horizontal/vertical fading, favorites, rotation selection, profile persistence, render-cache reuse and monitor enumeration.
 - The Windows suite executes the real editor's crop, Undo/Redo, compare and save/reopen commands against temporary pictures. It does not change the desktop wallpaper.
