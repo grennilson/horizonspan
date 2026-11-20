@@ -101,7 +101,8 @@ namespace ScreenSpan
         {
             Directory.CreateDirectory(Root);
             string uv = Path.Combine(Root, "uv.exe"), ready = Path.Combine(Root, "ready");
-            if (File.Exists(ready) && File.ReadAllText(ready) == (cpu ? "cpu" : "cuda") && File.Exists(Python))
+            string runtimeVersion = cpu ? "cpu:2" : "cuda:2";
+            if (File.Exists(ready) && File.ReadAllText(ready) == runtimeVersion && File.Exists(Python))
                 return;
             if (!File.Exists(uv))
             {
@@ -129,10 +130,10 @@ namespace ScreenSpan
             await RunProcess(uv, new[] { "python", "install", "3.12", "--no-bin" }, progress, token);
             await RunProcess(uv, new[] { "venv", "--allow-existing", "--managed-python", "--python", "3.12", Path.Combine(Root, "env") }, progress, token);
             await RunProcess(uv, new[] { "pip", "install", "--python", Python, "torch==2.10.0", "torchvision==0.25.0", "--index-url", cpu ? "https://download.pytorch.org/whl/cpu" : "https://download.pytorch.org/whl/cu126" }, progress, token);
-            await RunProcess(uv, new[] { "pip", "install", "--python", Python, "Pillow==12.1.1", "spandrel==0.4.2", "diffusers==0.37.0", "transformers==4.57.6", "accelerate==1.12.0", "huggingface-hub==0.36.2" }, progress, token);
+            await RunProcess(uv, new[] { "pip", "install", "--python", Python, "Pillow==12.1.1", "spandrel==0.4.2", "diffusers==0.37.0", "transformers==4.57.6", "accelerate==1.12.0", "huggingface-hub==0.36.2", "hf-xet==1.8.0" }, progress, token);
             await RunProcess(Python, new[] { "-c", "import torch, spandrel; from diffusers import StableDiffusionXLInpaintPipeline; print('AI runtime ready; CUDA available:', torch.cuda.is_available())" }, progress, token);
             token.ThrowIfCancellationRequested();
-            File.WriteAllText(ready, cpu ? "cpu" : "cuda");
+            File.WriteAllText(ready, runtimeVersion);
         }
         public static async Task<string> Generate(EditState state, AIPlan plan, string action, string prompt, bool cpu, Action<string> progress, CancellationToken token, int steps = 26)
         {

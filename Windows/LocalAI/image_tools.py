@@ -103,7 +103,8 @@ def prepare_outpaint(models):
         # The Hub client resumes interrupted transfers and uses Xet chunk downloads
         # for large weights. A single urllib transfer can stall on multi-GB files.
         result = Path(hf_hub_download(repo_id=MODEL, filename=name, revision=REVISION,
-                                     local_dir=str(directory), token=False))
+                                     local_dir=str(directory), token=False,
+                                     force_download=path.is_file()))
         if digest:
             with result.open("rb") as stream:
                 if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
