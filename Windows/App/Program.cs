@@ -53,6 +53,8 @@ namespace ScreenSpan
                         using (var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out))
                         {
                             client.Connect(4000);
+                            if (!(args.Length == 1 && (args[0] == "--quit" || args[0] == "--background")))
+                                WindowActivation.AllowExistingInstance(client);
                             using (var writer = new StreamWriter(client))
                             {
                                 writer.WriteLine(JsonConvert.SerializeObject(args));

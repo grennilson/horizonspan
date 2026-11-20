@@ -117,6 +117,8 @@ namespace ScreenSpan
                         lines.Add("PASS: real editor crop, Undo/Redo, original comparison and reopen");
                         window.CheckLayout();
                         lines.Add("PASS: wrapped editor controls remain visible at narrow width and enlarged text");
+                        window.CheckWindowLifecycle();
+                        lines.Add("PASS: minimize/restore, close without quitting, reopen and preserve maximized state");
                     }
                 }
                 var monitors = Desktop.Monitors();
@@ -160,6 +162,27 @@ namespace ScreenSpan
     }
     public sealed partial class MainWindow
     {
+        internal void CheckWindowLifecycle()
+        {
+            HandleLaunch(Array.Empty<string>());
+            if (!Visible || IsDisposed) throw new Exception("Hidden editor did not reopen.");
+            WindowState = System.Windows.Forms.FormWindowState.Minimized;
+            System.Windows.Forms.Application.DoEvents();
+            HandleLaunch(Array.Empty<string>());
+            if (!Visible || WindowState == System.Windows.Forms.FormWindowState.Minimized)
+                throw new Exception("Minimized editor did not restore.");
+            Close();
+            if (Visible || IsDisposed) throw new Exception("Close must hide the editor without quitting.");
+            HandleLaunch(Array.Empty<string>());
+            if (!Visible || IsDisposed) throw new Exception("Closed editor did not reopen.");
+            WindowState = System.Windows.Forms.FormWindowState.Maximized;
+            Hide();
+            HandleLaunch(Array.Empty<string>());
+            if (!Visible || WindowState != System.Windows.Forms.FormWindowState.Maximized)
+                throw new Exception("Reopening lost maximized state.");
+            WindowState = System.Windows.Forms.FormWindowState.Normal;
+            Hide();
+        }
         internal void CheckLayout()
         {
             Show();

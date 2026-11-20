@@ -43,7 +43,7 @@ namespace ScreenSpan
             ((ToolStripMenuItem)edit.DropDownItems.Add("Redo", null, (s, e) => Redo())).ShortcutKeys = Keys.Control | Keys.Y;
             menu.Items.Add(edit);
             menu.Items.Add("Settings", null, (s, e) => Settings());
-            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.1\nSpan, crop, extend and organize desktop wallpapers.", "About"));
+            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.2\nSpan, crop, extend and organize desktop wallpapers.", "About"));
             MainMenuStrip = menu;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 5 };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -98,7 +98,7 @@ namespace ScreenSpan
             trayMenu.Items.Add(new ToolStripSeparator());
             trayMenu.Items.Add("Quit", null, (s, e) => Quit());
             tray.ContextMenuStrip = trayMenu;
-            tray.DoubleClick += (s, e) => ShowEditor();
+            tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowEditor(); };
             DragEnter += (s, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy; };
             DragDrop += (s, e) => Run(() => Import((string[])e.Data.GetData(DataFormats.FileDrop)));
             preview.AllowDrop = true;
@@ -339,9 +339,12 @@ namespace ScreenSpan
         }
         void ShowEditor()
         {
-            Show();
-            WindowState = FormWindowState.Normal;
-            Activate();
+            WindowActivation.Show(this);
+            // A settings or AI dialog can disable its owner. Bring that dialog
+            // forward as well so the app never appears frozen behind it.
+            var dialog = OwnedForms.LastOrDefault(form => form.Visible && form.Modal);
+            if (dialog != null)
+                WindowActivation.Show(dialog);
         }
         void LoadMonitors()
         {

@@ -1,13 +1,13 @@
-# ScreenSpan Wallpaper for Windows 1.0.1
+# ScreenSpan Wallpaper for Windows 1.0.2
 
 Create desktop wallpapers for one, two, three, four or more monitors. The app follows the arrangement reported by Windows and renders a separate image at each display's resolution.
 
 ## Install or run
 
-Download from the [Windows 1.0.1 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.1):
+Download from the [Windows 1.0.2 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.2):
 
-- **ScreenSpan-Wallpaper-Windows-Setup-1.0.1.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
-- **ScreenSpan-Wallpaper-Windows-1.0.1.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
+- **ScreenSpan-Wallpaper-Windows-Setup-1.0.2.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
+- **ScreenSpan-Wallpaper-Windows-1.0.2.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
 - The portable ZIP includes the application and documentation.
 
 Requires Windows 10 or Windows 11, 64-bit, with .NET Framework 4.8 or newer. Windows 11 includes it. If Windows 10 reports a missing framework, install [.NET Framework 4.8 from Microsoft](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48). The executables are unsigned; Windows may show an unknown-publisher message. SHA-256 checksums are included with the release.
@@ -75,7 +75,7 @@ Names, favorites and named monitor profiles are in `Pictures/ScreenSpan Wallpape
 
 After **Apply Wallpaper**, the app saves a self-contained project and remembers its location. It restores and rerenders that wallpaper after display changes, wake and session reconnection, while it is running. Cached renders are reused for the same settings and monitor layout. Background errors are recorded in `Background.log`, without interrupting the editor with repeated dialogs.
 
-Closing the editor keeps the app running in the Windows notification area. Use the tray menu for the editor, a new wallpaper, saved wallpapers, Next, Reapply, Settings and Quit. Launching the shortcut again reopens the existing instance. **Start ScreenSpan when I sign in** is optional and off by default.
+Minimize keeps the editor on the Windows taskbar. Closing with **X** hides the editor and keeps the app running in the Windows notification area. A pinned taskbar icon or the Desktop/Start menu shortcut reopens the existing instance; a single left-click on its icon beside the clock also opens the editor. Right-click that notification icon for a new wallpaper, saved wallpapers, Next, Reapply, Settings and Quit. Reopening restores a minimized window, preserves a maximized window, and brings an existing settings or AI dialog forward. **Start ScreenSpan when I sign in** is optional and off by default.
 
 Windows virtual desktops and Remote Desktop behave differently from macOS Spaces. A remote session may expose virtual monitors; this cannot prove how physically connected screens behave after reconnection. If the Windows wallpaper service does not expose a usable display, the editor uses a preview-only fallback and reports that wallpaper application is unavailable in that session.
 
