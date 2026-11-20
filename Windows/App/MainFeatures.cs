@@ -33,10 +33,10 @@ namespace ScreenSpan
             tools.DropDownItems.Add("Extend with AI…", null, (s, e) => GenerateAI("extend"));
             tools.DropDownItems.Add("Enhance Detail…", null, (s, e) => GenerateAI("enhance"));
             tools.DropDownItems.Add("Fade Edges to Black", null, (s, e) => Run(Fade));
-            tools.DropDownItems.Add("Displays & Appearance…", null, (s, e) => Run(DesignOptions));
+            tools.DropDownItems.Add("Displays && Appearance…", null, (s, e) => Run(DesignOptions));
             menu.Items.Insert(2, tools);
             var wallpaper = new ToolStripMenuItem("Wallpaper");
-            wallpaper.DropDownItems.Add("Displays & Appearance…", null, (s, e) => Run(DesignOptions));
+            wallpaper.DropDownItems.Add("Displays && Appearance…", null, (s, e) => Run(DesignOptions));
             wallpaper.DropDownItems.Add("Next Wallpaper", null, (s, e) => Run(Next));
             wallpaper.DropDownItems.Add("Reapply Saved Wallpaper", null, (s, e) => Run(Restore));
             wallpaper.DropDownItems.Add("Check for Updates…", null, (s, e) => CheckUpdates());

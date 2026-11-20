@@ -64,7 +64,7 @@ namespace ScreenSpan
         LibraryEntry? Selected => list.SelectedItems.Count > 0 ? list.SelectedItems[0].Tag as LibraryEntry : null;
         Button Make(string text, Action action)
         {
-            var button = new Button { Text = text, AutoSize = true, Margin = new Padding(3, 4, 8, 4) };
+            var button = new Button { Text = text, UseMnemonic = false, AutoSize = true, Margin = new Padding(3, 4, 8, 4) };
             button.Click += (s, e) => Act(action);
             return button;
         }

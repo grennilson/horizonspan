@@ -121,7 +121,7 @@ namespace ScreenSpan
         }
         Button Button(string title, Action action)
         {
-            var b = new Button { Text = title, AutoSize = true, Height = 32, Margin = new Padding(0, 0, 8, 0) };
+            var b = new Button { Text = title, UseMnemonic = false, AutoSize = true, Height = 32, Margin = new Padding(0, 0, 8, 0) };
             b.Click += (s, e) => Run(action);
             return b;
         }

@@ -62,8 +62,8 @@ namespace ScreenSpan
                 var value = Result.Design.For(monitor.Id);
                 if (!Result.Design.monitors.Contains(value))
                     Result.Design.monitors.Add(value);
-                var box = new GroupBox { Text = monitor.Name, Width = 650, Height = 175 };
-                var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(10) };
+                var box = new GroupBox { Text = monitor.Name, Width = 650, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(620, 0) };
+                var grid = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(10) };
                 Add(grid, "Wallpaper group (0 = main panorama)", 0, 32, value.group, v => value.group = (int)v, 0);
                 Add(grid, "Horizontal offset (pixels)", -20000, 20000, (decimal)value.offsetX, v => value.offsetX = (double)v, 0);
                 Add(grid, "Vertical offset (positive moves up)", -20000, 20000, (decimal)value.offsetY, v => value.offsetY = (double)v, 0);
