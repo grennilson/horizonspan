@@ -15,6 +15,7 @@ Validation performed on November 20, 2026.
 - Windows 10 Pro (build 19045) on Gaming: installation, complete rendering/project suite, and actual desktop wallpaper assignment/readback followed by restoration of the previous wallpaper.
 - Windows 11 Pro (build 26300) on Plex: installation and manual library thumbnails, Settings and Displays & Appearance checks. Group controls and labels were corrected and rechecked.
 - Model downloader checks without network access: pinned revision, anonymous download, reuse of validated weights, repair of corrupted cached weights and rejection of an incorrect SHA-256 digest.
+- Version 1.0.1 fixes clipped wrapped controls found when installing the release on Gaming. Toolbar rows now grow with their contents. A new Windows regression check exercises narrow windows, enlarged text and both crop states; it passed on Gaming, and the corrected window was also checked visually.
 
 - Actual SDXL CPU inference on Gaming (AMD Radeon RX 580, 32 GB RAM): downloaded and hash-verified the pinned model, loaded the pipeline and extended a 128 × 128 image to 256 × 128 using two inference steps per band. Output dimensions and unchanged original pixels passed. Normal editor generation uses 26 steps; this diagnostic is a runtime check, not a visual-quality evaluation.
 - Rechecked Real-ESRGAN CPU inference and the complete Windows editor/project suite on Plex after updating the AI runtime. Both passed.
