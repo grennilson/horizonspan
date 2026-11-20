@@ -16,9 +16,9 @@ Validation performed on November 20, 2026.
 - Windows 11 Pro (build 26300) on Plex: installation and manual library thumbnails, Settings and Displays & Appearance checks. Group controls and labels were corrected and rechecked.
 - Model downloader checks without network access: pinned revision, anonymous download, reuse of validated weights, repair of corrupted cached weights and rejection of an incorrect SHA-256 digest.
 
-## AI extension integration check in progress
-
-- Actual two-step CPU SDXL generation on Gaming (32 GB RAM). Model downloads now use the resumable Hugging Face client and explicit Windows Xet transport.
+- Actual SDXL CPU inference on Gaming (AMD Radeon RX 580, 32 GB RAM): downloaded and hash-verified the pinned model, loaded the pipeline and extended a 128 × 128 image to 256 × 128 using two inference steps per band. Output dimensions and unchanged original pixels passed. Normal editor generation uses 26 steps; this diagnostic is a runtime check, not a visual-quality evaluation.
+- Rechecked Real-ESRGAN CPU inference and the complete Windows editor/project suite on Plex after updating the AI runtime. Both passed.
+- Fixed a stalled large-model transfer during integration testing. Downloads now use the resumable Hugging Face client and explicit Windows Xet transport. The full SDXL download and inference then completed successfully.
 
 ## Practical limits
 
