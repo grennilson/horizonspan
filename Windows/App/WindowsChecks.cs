@@ -110,7 +110,8 @@ namespace ScreenSpan
                     var cache1 = Project.RenderForDesktop(state, fake);
                     var cache2 = Project.RenderForDesktop(state, fake);
                     Check(cache1.SequenceEqual(cache2) && cache1.All(File.Exists), "restoration render cache reused", lines);
-                    using (var window = new MainWindow(new[] { input }))
+                    using(var gallery=new LibraryWindow(fake,_=>{},_=>{})){gallery.CreateControl();lines.Add("PASS: thumbnail library native image-list initialization");}
+                using (var window = new MainWindow(new[] { input }))
                     {
                         window.CheckEditor();
                         lines.Add("PASS: real editor crop, Undo/Redo, original comparison and reopen");

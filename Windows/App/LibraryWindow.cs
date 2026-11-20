@@ -22,6 +22,8 @@ namespace ScreenSpan
             Shown += (s, e) => WindowSizing.Fit(this);
             thumbnails.ImageSize = new Size(180, 110);
             thumbnails.ColorDepth = ColorDepth.Depth32Bit;
+            // Materialize the native image list before disposing the temporary bitmaps added below.
+            var nativeImages = thumbnails.Handle;
             list.Dock = DockStyle.Fill;
             list.View = View.LargeIcon;
             list.LargeImageList = thumbnails;
