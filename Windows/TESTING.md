@@ -11,17 +11,21 @@ Validation performed on November 20, 2026.
 - Installer payload extraction, followed by running the complete application suite with the standalone EXE in a folder with no application DLL files.
 - Actual Real-ESRGAN CPU inference on Plex Server: the pinned model was downloaded and loaded, and a 32 × 24 test image was enhanced to 64 × 48.
 - Manual checks during development: image picker import, corner dragging, crop application, Undo/Redo, project save/reopen, small-screen window sizing and close-to-tray behavior.
+- Clean GitHub-hosted Windows compilation, rendering/editor checks, installer payload checks and artifact packaging.
+- Windows 10 Pro (build 19045) on Gaming: installation, complete rendering/project suite, and actual desktop wallpaper assignment/readback followed by restoration of the previous wallpaper.
+- Windows 11 Pro (build 26300) on Plex: installation and manual library thumbnails, Settings and Displays & Appearance checks. Group controls and labels were corrected and rechecked.
+- Model downloader checks without network access: pinned revision, anonymous download, reuse of validated weights, repair of corrupted cached weights and rejection of an incorrect SHA-256 digest.
 
-## Release checks in progress
+## AI extension integration check in progress
 
-- Clean GitHub-hosted Windows build and packaging checks.
-- Windows 10 Gaming installation, renderer and wallpaper assignment checks.
-- NVIDIA edge-generation inference, if supported hardware is available on Gaming.
+- Actual two-step CPU SDXL generation on Gaming (32 GB RAM). Model downloads now use the resumable Hugging Face client and explicit Windows Xet transport.
 
 ## Practical limits
 
 Physical unplug/replug, monitor-input switching, different GPU drivers, multi-monitor hardware combinations beyond the available machines, and sign-in after a full reboot cannot be inferred from Remote Desktop results. Two-, three- and four-display layouts are covered by automated geometry/rendering cases; that is separate from testing those layouts on physical monitors.
 
 AI outputs can contain seams or invented content. Passing a runtime/inference test does not guarantee pleasing results for every photograph. Intel/AMD graphics use CPU mode in this version; CPU edge generation requires at least 32 GB RAM. The Plex machine has Intel graphics and 16 GB RAM, so edge generation is not run there.
+
+Neither available PC has NVIDIA graphics. CUDA inference has not been tested on hardware.
 
 The GitHub build retains its test reports and SHA-256 checksums with its executable artifacts. The Windows executables are unsigned. The installer preserves Pictures/ScreenSpan Wallpaper and the application's local data when uninstalling.

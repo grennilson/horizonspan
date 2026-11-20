@@ -97,6 +97,8 @@ The script builds the app, runs cross-platform checks and Windows rendering/proj
 & './App/bin/Release/net48/ScreenSpan Wallpaper.exe' --ai-smoke-test "$PWD/ai-checks.txt"
 ```
 
+On a machine with at least 32 GB RAM, `--ai-edge-smoke-test "$PWD/edge-checks.txt"` downloads the SDXL model and runs a small CPU extension with two inference steps. It checks output dimensions and preservation of the source pixels. Normal editor generation uses 26 steps; this short diagnostic does not assess visual quality.
+
 Source layout: `Core/` contains geometry, settings validation, profiles and AI planning; `App/` contains the Windows UI, wallpaper COM interface, library, rendering, persistence and AI launcher; `LocalAI/` contains the Python worker; `Setup/` contains the per-user installer; `Tests/` contains platform-independent checks.
 
 See [TESTING.md](TESTING.md) for results and remaining real-world checks. Do not interpret passing software tests as a guarantee that every driver or physical monitor arrangement has been exercised.

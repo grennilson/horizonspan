@@ -21,6 +21,7 @@ Optional local AI downloads are installed separately into the current user's app
 - [Transformers](https://github.com/huggingface/transformers): Apache-2.0.
 - [Accelerate](https://github.com/huggingface/accelerate): Apache-2.0.
 - [Hugging Face Hub](https://github.com/huggingface/huggingface_hub): Apache-2.0.
+- [Hugging Face Xet](https://github.com/huggingface/xet-core): Apache-2.0; resumable model transport.
 - [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN): BSD-3-Clause; the detail model is downloaded from the upstream release.
 - [SDXL inpainting model](https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1): see its model card and CreativeML Open RAIL++-M license.
 
