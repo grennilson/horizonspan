@@ -85,13 +85,31 @@ def download(url, path, digest=None):
 
 
 def prepare_outpaint(models):
+    from huggingface_hub import hf_hub_download
+
     directory = models / f"sdxl-inpaint-{REVISION[:7]}"
     if not all((directory / name).is_file() for name in MODEL_FILES):
         progress("Downloading the edge-extension model (about 7 GB)…")
-    base = f"https://huggingface.co/{MODEL}/resolve/{REVISION}"
+    def fetch(name):
+        path = directory / name
+        digest = MODEL_DIGESTS.get(name)
+        if path.is_file() and path.stat().st_size:
+            if digest is None:
+                return
+            with path.open("rb") as stream:
+                if hashlib.file_digest(stream, "sha256").hexdigest() == digest:
+                    return
+        progress(f"Downloading {name}…")
+        # The Hub client resumes interrupted transfers and uses Xet chunk downloads
+        # for large weights. A single urllib transfer can stall on multi-GB files.
+        result = Path(hf_hub_download(repo_id=MODEL, filename=name, revision=REVISION,
+                                     local_dir=str(directory), token=False))
+        if digest:
+            with result.open("rb") as stream:
+                if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                    raise RuntimeError(f"Integrity check failed for {name}; remove this model file and retry.")
     with ThreadPoolExecutor(max_workers=4) as pool:
-        list(pool.map(lambda name: download(f"{base}/{name}", directory / name, MODEL_DIGESTS.get(name)),
-                      MODEL_FILES))
+        list(pool.map(fetch, MODEL_FILES))
     return directory
 
 
