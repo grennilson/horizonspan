@@ -34,6 +34,7 @@ namespace ScreenSpan
                 }
                 catch (Exception error) { File.AppendAllText(args[1], "FAIL: " + error); return 1; }
             }
+            if(args.Length==2&&args[0]=="--ai-edge-smoke-test"){try{WindowsChecks.AIEdges(args[1]).GetAwaiter().GetResult();return 0;}catch{return 1;}}
             if (args.Length == 2 && args[0] == "--ai-smoke-test")
             {
                 try

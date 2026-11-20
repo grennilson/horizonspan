@@ -126,6 +126,7 @@ namespace ScreenSpan
             catch (Exception e) { lines.Add("FAIL: " + e); File.WriteAllLines(report, lines); throw; }
             finally { Project.TestRoot = null; Directory.Delete(root, true); }
         }
+        public static async Task AIEdges(string report){object gate=new object();Action<string> log=line=>{lock(gate)File.AppendAllText(report,line+Environment.NewLine);};string root=Path.Combine(Path.GetTempPath(),"ScreenSpan-Edge-Test-"+Guid.NewGuid());Directory.CreateDirectory(root);try{using(var image=new Bitmap(128,128)){using(var g=Graphics.FromImage(image))g.Clear(Color.CornflowerBlue);string input=Path.Combine(root,"input.png");image.Save(input);string output=await AIWorker.Generate(new EditState{ImagePath=input},new AIPlan{Width=256,Height=128,Leading=128},"extend","Continue a smooth blue background without objects or text.",true,log,CancellationToken.None,2);using(var extended=Project.Load(output)){if(extended.Width!=256||extended.Height!=128||extended.GetPixel(190,64).ToArgb()!=image.GetPixel(62,64).ToArgb())throw new Exception("AI extension changed the original source or output dimensions.");}File.Delete(output);log("PASS: actual SDXL CPU edge inference (2 steps), dimensions and preserved original pixels.");}}catch(Exception error){log("FAIL: "+error);throw;}finally{Directory.Delete(root,true);}}
         public static async Task AI(string report)
         {
             var lines = new List<string>();

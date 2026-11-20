@@ -134,7 +134,7 @@ namespace ScreenSpan
             token.ThrowIfCancellationRequested();
             File.WriteAllText(ready, cpu ? "cpu" : "cuda");
         }
-        public static async Task<string> Generate(EditState state, AIPlan plan, string action, string prompt, bool cpu, Action<string> progress, CancellationToken token)
+        public static async Task<string> Generate(EditState state, AIPlan plan, string action, string prompt, bool cpu, Action<string> progress, CancellationToken token, int steps = 26)
         {
             await Setup(cpu, progress, token);
             string result = Path.Combine(Root, "result-" + Guid.NewGuid() + ".png");
@@ -142,6 +142,7 @@ namespace ScreenSpan
             if (action == "extend")
             {
                 arguments.Add("--leading-extension=" + plan.Leading);
+                arguments.Add("--steps=" + steps);
                 if (!string.IsNullOrWhiteSpace(prompt))
                     arguments.Add("--prompt=" + prompt.Substring(0, Math.Min(400, prompt.Length)));
             }

@@ -150,7 +150,7 @@ def enhance(image, width, height, models):
     return output
 
 
-def extend(image, width, height, models, prompt=None, seed=None, leading_extension=None):
+def extend(image, width, height, models, prompt=None, seed=None, leading_extension=None, steps=26):
     from PIL import Image, ImageCms
     import torch
     from diffusers import StableDiffusionXLInpaintPipeline
@@ -221,7 +221,7 @@ def extend(image, width, height, models, prompt=None, seed=None, leading_extensi
         while remaining:
             amount = min(remaining, max_step)
             progress(f"Extending the {side} edge…")
-            band = generate_band(pipe, context_image, side, amount, work_size, description, negative, seed)
+            band = generate_band(pipe, context_image, side, amount, work_size, description, negative, seed, steps)
             seed += 1
             # Make this band available as context when the layout needs another pass.
             if horizontal:
@@ -244,7 +244,7 @@ def extend(image, width, height, models, prompt=None, seed=None, leading_extensi
     return result
 
 
-def generate_band(pipe, source, side, amount, work_size, description, negative, seed):
+def generate_band(pipe, source, side, amount, work_size, description, negative, seed, steps=26):
     import numpy as np
     from PIL import Image, ImageDraw
     import torch
@@ -280,7 +280,7 @@ def generate_band(pipe, source, side, amount, work_size, description, negative, 
         prompt=f"Natural continuation of the same scene at the {side} edge. {description}",
         negative_prompt=negative,
         image=canvas, mask_image=mask, width=work_size[0], height=work_size[1],
-        num_inference_steps=26, strength=0.99, guidance_scale=7.0,
+        num_inference_steps=steps, strength=0.99, guidance_scale=7.0,
         original_size=work_size[::-1], target_size=work_size[::-1],
         generator=torch.Generator(device="cpu").manual_seed(seed),
     ).images[0]
@@ -326,6 +326,7 @@ def main():
     parser.add_argument("models", type=Path)
     parser.add_argument("width", type=int)
     parser.add_argument("height", type=int)
+    parser.add_argument("--steps", type=int, default=26, choices=range(1, 51))
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--prompt")
     parser.add_argument("--seed", type=int)
@@ -342,7 +343,7 @@ def main():
     if args.action == "enhance":
         result = enhance(image, args.width, args.height, args.models)
     else:
-        result = extend(image, args.width, args.height, args.models, args.prompt, args.seed, args.leading_extension)
+        result = extend(image, args.width, args.height, args.models, args.prompt, args.seed, args.leading_extension, args.steps)
     result.save(args.output, format="PNG", icc_profile=profile)
 
 
