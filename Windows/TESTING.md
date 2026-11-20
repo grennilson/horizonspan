@@ -31,6 +31,8 @@ Neither available PC has NVIDIA graphics. CUDA inference has not been tested on 
 
 ## Window activation regression
 
-Version 1.0.2 adds foreground-permission transfer from a new launcher to the existing instance, explicit minimized-window restoration, maximized-state preservation and activation of owned modal dialogs. A single notification-icon click opens the editor. The Windows suite now checks minimize/restore, close-to-background and reopening. Manual Gaming checks of 1.0.1 did not reproduce every reported failure: its title-bar minimize, taskbar restore, close and Desktop shortcut reopening responded during inspection. Updated-build validation is recorded in its attached Windows report; manual checks are performed before release.
+Version 1.0.2 adds foreground-permission transfer from a new launcher to the existing instance, explicit minimized-window restoration, maximized-state preservation and activation of owned modal dialogs. A single notification-icon click opens the editor. The Windows suite now checks minimize/restore, close-to-background and reopening. Manual Gaming checks of 1.0.1 did not reproduce every reported failure: its title-bar minimize, taskbar restore, close and Desktop shortcut reopening responded during inspection.
+
+The 1.0.2 Windows suite passed on Gaming and GitHub's Windows runner. Real mouse checks on Gaming passed: title-bar minimize, restore from ScreenSpan's taskbar button, close without quitting, Desktop shortcut reopening, single-click notification-icon reopening, and bringing an existing Settings dialog back in front of another application. These checks used the installed path and the real second-instance launcher.
 
 The GitHub build retains its test reports and SHA-256 checksums with its executable artifacts. The Windows executables are unsigned. The installer preserves Pictures/ScreenSpan Wallpaper and the application's local data when uninstalling.
