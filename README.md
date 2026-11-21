@@ -4,8 +4,8 @@ ScreenSpan Wallpaper creates desktop wallpapers across multiple displays, with n
 
 ## Downloads
 
-- **Windows 10/11, 64-bit:** [Windows 1.0.2 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.2). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
-- **macOS 13 or newer:** [Mac 1.4.0 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.0). Download the DMG. The Mac version supports Apple Silicon and Intel.
+- **Windows 10/11, 64-bit:** [Windows 1.0.3 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.3). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
+- **macOS 13 or newer:** [Mac 1.4.1 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.1). Download the DMG. The Mac version supports Apple Silicon and Intel.
 
 Windows code and its build script live in `Windows/`. The Swift files and build scripts at the repository root are the Mac application. Windows and Mac have separate version tags and downloads; a Windows release does not replace the Mac latest-release link.
 
@@ -13,7 +13,9 @@ The following sections describe the Mac application. The Windows guide explains 
 
 ## Install on macOS
 
-These instructions cover ScreenSpan Wallpaper 1.4.0.
+These instructions cover ScreenSpan Wallpaper 1.4.1.
+
+Mac 1.4.1 and Windows 1.0.3 use the new Spectrum app icon: two white monitors with a continuous colorful wallpaper. The Mac icon includes Retina sizes, and the Windows application and installer include icon sizes from 16 to 256 pixels. To regenerate the Windows icon from the shared `AppIcon.png` on a Mac, run `python3 Tools/build_windows_icon.py`.
 
 1. Download the disk image from [the latest GitHub release](https://github.com/grennilson/horizonspan/releases/latest) and open it.
 2. Drag **ScreenSpan Wallpaper.app** onto the **Applications** shortcut.

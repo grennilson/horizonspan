@@ -43,7 +43,7 @@ namespace ScreenSpan
             ((ToolStripMenuItem)edit.DropDownItems.Add("Redo", null, (s, e) => Redo())).ShortcutKeys = Keys.Control | Keys.Y;
             menu.Items.Add(edit);
             menu.Items.Add("Settings", null, (s, e) => Settings());
-            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.2\nSpan, crop, extend and organize desktop wallpapers.", "About"));
+            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.3\nSpan, crop, extend and organize desktop wallpapers.", "About"));
             MainMenuStrip = menu;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 5 };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));

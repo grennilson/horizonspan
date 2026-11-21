@@ -26,6 +26,6 @@ jobs:
       - name: Keep checked executables and reports
         uses: actions/upload-artifact@v4
         with:
-          name: ScreenSpan-Wallpaper-Windows-1.0.2
+          name: ScreenSpan-Wallpaper-Windows-1.0.3
           path: Windows/artifacts/
           if-no-files-found: error

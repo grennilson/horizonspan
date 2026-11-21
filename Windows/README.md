@@ -1,13 +1,15 @@
-# ScreenSpan Wallpaper for Windows 1.0.2
+# ScreenSpan Wallpaper for Windows 1.0.3
+
+Version 1.0.3 uses the Spectrum app icon, matching Mac 1.4.1, in the application, taskbar, shortcuts and installer. This update retains the window-activation improvements from 1.0.2.
 
 Create desktop wallpapers for one, two, three, four or more monitors. The app follows the arrangement reported by Windows and renders a separate image at each display's resolution.
 
 ## Install or run
 
-Download from the [Windows 1.0.2 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.2):
+Download from the [Windows 1.0.3 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.3):
 
-- **ScreenSpan-Wallpaper-Windows-Setup-1.0.2.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
-- **ScreenSpan-Wallpaper-Windows-1.0.2.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
+- **ScreenSpan-Wallpaper-Windows-Setup-1.0.3.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
+- **ScreenSpan-Wallpaper-Windows-1.0.3.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
 - The portable ZIP includes the application and documentation.
 
 Requires Windows 10 or Windows 11, 64-bit, with .NET Framework 4.8 or newer. Windows 11 includes it. If Windows 10 reports a missing framework, install [.NET Framework 4.8 from Microsoft](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48). The executables are unsigned; Windows may show an unknown-publisher message. SHA-256 checksums are included with the release.
