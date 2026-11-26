@@ -105,6 +105,30 @@ import UniformTypeIdentifiers
 
         let libraryRoot = folder.appendingPathComponent("Library")
         let project = try WallpaperProject.save(source: source, wallpaper: groups, displays: displays, library: libraryRoot, assets: assets)
+        let sameSettings = SavedWallpaper(source: source, framing: groups.framing, zoom: groups.zoom, pan: groups.pan, design: groups.design)
+        let saveThenApply = try WallpaperProject.save(source: source, wallpaper: sameSettings, displays: displays,
+            library: libraryRoot, assets: assets)
+        check(project.resolvingSymlinksInPath() == saveThenApply.resolvingSymlinksInPath(), "Save then Apply must reuse the same wallpaper entry")
+        check(tryManifestID(saveThenApply) == groups.id, "Apply must retain the saved wallpaper's library identity")
+        let reopenedForSave = try WallpaperProject.open(project)
+        let reopenedSave = try WallpaperProject.save(source: reopenedForSave.0, wallpaper: reopenedForSave.1,
+            displays: displays, library: libraryRoot, assets: WallpaperProject.assets(at: project, settings: reopenedForSave.1))
+        check(reopenedSave.resolvingSymlinksInPath() == project.resolvingSymlinksInPath(), "Reopening and saving an unchanged wallpaper must not duplicate it")
+        let dedupeLibrary = folder.appendingPathComponent("Dedupe")
+        let originalSave = try WallpaperProject.save(source: source, wallpaper: legacy, displays: displays, library: dedupeLibrary)
+        let changedFraming = SavedWallpaper(source: source, framing: .fit, zoom: 1.4, pan: .zero)
+        let changedSave = try WallpaperProject.save(source: source, wallpaper: changedFraming, displays: displays, library: dedupeLibrary)
+        check(originalSave != changedSave, "Changed framing must save a new version")
+        let otherPixels = SourceImage(filename: source.filename, image: image(80, 20, color: green))
+        let changedPixels = try WallpaperProject.save(source: otherPixels, wallpaper: legacy, displays: displays, library: dedupeLibrary)
+        check(changedPixels != originalSave && tryManifestID(changedPixels) != legacy.id,
+              "Changed image pixels must never reuse or overwrite a same-ID package")
+        let alternateAssets = [1: assets[2]!, 2: assets[1]!]
+        let changedGroups = try WallpaperProject.save(source: source, wallpaper: groups, displays: displays,
+            library: dedupeLibrary, assets: alternateAssets)
+        let originalGroups = try WallpaperProject.save(source: source, wallpaper: groups, displays: displays,
+            library: dedupeLibrary, assets: assets)
+        check(changedGroups != originalGroups, "Changed group images must save a separate version")
         let reopened = try WallpaperProject.open(project)
         let restoredAssets = try WallpaperProject.assets(at: project, settings: reopened.1)
         check(reopened.1.design == design && restoredAssets.count == 2, "Projects must restore groups and custom images")
@@ -234,9 +258,11 @@ import UniformTypeIdentifiers
         print("PASS — project portability, legacy projects, restore cache, thumbnails, library metadata and monitor profiles")
         print("PASS — numeric update versions, crop undo/redo and rotation deadlines")
         print("PASS — stable monitor identities after reboot, damaged cache recovery, delayed startup retries and cancellation")
+        print("PASS — Save/Apply reuse, reopened wallpaper reuse, and distinct versions for changed images/framing/groups")
     }
 
     static func tryAssets(_ url: URL, settings: SavedWallpaper) -> Int { (try? WallpaperProject.assets(at: url, settings: settings).count) ?? -1 }
+    static func tryManifestID(_ url: URL) -> UUID? { try? WallpaperProject.manifest(at: url).wallpaper.id }
     static func tryAssetsCount(_ store: WallpaperStore, settings: SavedWallpaper) -> Int { (try? store.assets(for: settings).count) ?? -1 }
     static func tryProfile(_ store: WallpaperLibraryStore, displays: [Display]) -> UUID? {
         try? store.index().setups[WallpaperDesign.setupKey(displays)]?.projectID

@@ -24,11 +24,11 @@ try {
 } finally {
     if (Test-Path $testDirectory) { Remove-Item -LiteralPath $testDirectory -Recurse -Force }
 }
-Copy-Item $exe (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-1.0.3.exe') -Force
-Copy-Item $setup (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-Setup-1.0.3.exe') -Force
-Compress-Archive -Path $exe, README.md, THIRD-PARTY-NOTICES.md -DestinationPath (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-1.0.3-portable.zip') -Force
+Copy-Item $exe (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-1.0.4.exe') -Force
+Copy-Item $setup (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-Setup-1.0.4.exe') -Force
+Compress-Archive -Path $exe, README.md, THIRD-PARTY-NOTICES.md -DestinationPath (Join-Path $artifacts 'ScreenSpan-Wallpaper-Windows-1.0.4-portable.zip') -Force
 Get-ChildItem $artifacts -File | Where-Object Extension -in '.exe','.zip' | ForEach-Object {
     $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $($_.Name)"
 } | Set-Content (Join-Path $artifacts 'SHA256SUMS.txt')
-Write-Host 'Built and checked Windows 1.0.3. Files are in artifacts.'
+Write-Host 'Built and checked Windows 1.0.4. Files are in artifacts.'

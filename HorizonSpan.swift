@@ -492,17 +492,21 @@ final class WallpaperState: ObservableObject {
         guard let store else { throw WallpaperError.save }
         let targets = Display.connected()
         guard !targets.isEmpty else { throw WallpaperError.displays }
-        let urls = try await Task.detached(priority: .userInitiated) {
-            try store.store(source.image, as: wallpaper, assets: assets)
+        let preferredID = saved?.id
+        let (selection, urls) = try await Task.detached(priority: .userInitiated) {
+            var selection = wallpaper
             if archive {
-                _ = try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets, assets: assets)
+                let url = try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets,
+                    assets: assets, preferredID: preferredID)
+                selection = try WallpaperProject.manifest(at: url).wallpaper
             }
-            return try store.render(source.image, wallpaper: wallpaper, displays: targets, assets: assets)
+            try store.store(source.image, as: selection, assets: assets)
+            return (selection, try store.render(source.image, wallpaper: selection, displays: targets, assets: assets))
         }.value
         try assign(urls, to: targets, skipMatching: false) {
-            do { try store.select(wallpaper) } catch { throw WallpaperError.save }
+            do { try store.select(selection) } catch { throw WallpaperError.save }
         }
-        saved = wallpaper
+        saved = selection
         status = "Applied to \(targets.count) \(targets.count == 1 ? "display" : "displays")"
     }
 
@@ -511,20 +515,22 @@ final class WallpaperState: ObservableObject {
         let wallpaper = SavedWallpaper(source: source, framing: framing, zoom: zoom, pan: pan, design: currentDesign)
         let targets = displays
         let assets = groupImages
+        let preferredID = saved?.id
         isApplying = true
-        status = "Saving project…"
+        status = "Saving wallpaper…"
         Task {
             defer { isApplying = false }
             do {
                 let url = try await Task.detached(priority: .userInitiated) {
-                    try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets, assets: assets)
+                    try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets,
+                        assets: assets, preferredID: preferredID)
                 }.value
                 refreshLibrary()
                 status = "Saved in Pictures"
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
                 status = ""
-                errorMessage = "Couldn’t save the wallpaper project. \(error.localizedDescription)"
+                errorMessage = "Couldn’t save the wallpaper. \(error.localizedDescription)"
             }
         }
     }
@@ -816,7 +822,7 @@ struct WallpaperView: View {
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Text(model.status).font(.callout).foregroundStyle(.secondary).lineLimit(1)
-                Button("Save Project", action: model.saveProject)
+                Button("Save Wallpaper", action: model.saveProject)
                     .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
                 Button("Apply Wallpaper", action: model.apply).buttonStyle(.borderedProminent)
                     .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
@@ -1123,7 +1129,7 @@ struct WallpaperCommands: Commands {
                 .disabled(!model.canRedo)
         }
         CommandGroup(after: .newItem) {
-            Button("Save Wallpaper Project", action: model.saveProject)
+            Button("Save Wallpaper", action: model.saveProject)
                 .keyboardShortcut("s")
                 .disabled(model.source == nil || model.isBusy || model.showOriginal || model.displays.isEmpty || model.cropRect != nil)
             Button("Wallpaper Library…") { openWindow(id: "library") }

@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ScreenSpan;
 static class Tests {
     static int checks;
@@ -31,6 +33,21 @@ static class Tests {
         Check(!ReleaseVersions.IsNewer("v9.0.0","1.0.0"),"Mac release is excluded from Windows update checks");Check(ReleaseVersions.IsNewer("windows-v1.0.1","1.0.0"),"Windows update version comparison");Check(!ReleaseVersions.IsNewer("windows-v1.0.0","1.0.0"),"Same version is not an update");
         var pairs=new[]{new System.Collections.Generic.KeyValuePair<string,Box>("a",new Box(-100,0,100,100)),new System.Collections.Generic.KeyValuePair<string,Box>("b",new Box(0,0,100,100))};
         Check(LibraryIndex.SetupKey(pairs)==LibraryIndex.SetupKey(new[]{pairs[1],pairs[0]}),"Monitor profile key ignores enumeration order");
+        int attempts=0, failures=0, elapsed=0;
+        RestorationSchedule.Run(true,(delay,token)=>{elapsed+=delay;return Task.CompletedTask;},()=>true,
+            ()=>{attempts++;if(attempts==1)throw new Exception("display not ready");return Task.CompletedTask;},
+            error=>failures++,CancellationToken.None).GetAwaiter().GetResult();
+        Check(attempts==5&&failures==1&&elapsed==29150,"Startup retries continue after initial display failure");
+        using(var cancelled=new CancellationTokenSource()){
+            attempts=0;
+            RestorationSchedule.Run(true,(delay,token)=>{cancelled.Cancel();return Task.CompletedTask;},()=>true,
+                ()=>{attempts++;return Task.CompletedTask;},error=>{},cancelled.Token).GetAwaiter().GetResult();
+            Check(attempts==0,"Cancelled startup cannot apply stale wallpaper");
+        }
+        attempts=0;
+        RestorationSchedule.Run(false,(delay,token)=>Task.CompletedTask,()=>false,
+            ()=>{attempts++;return Task.CompletedTask;},error=>{},CancellationToken.None).GetAwaiter().GetResult();
+        Check(attempts==0,"Disabling restoration stops pending attempts");
         Console.WriteLine("Passed "+checks+" geometry and undo checks.");
     }
 }

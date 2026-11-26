@@ -16,7 +16,10 @@ namespace ScreenSpan
     {
         readonly Preview preview = new Preview(); readonly Label status = new Label(), info = new Label();
         readonly History<EditState> history = new History<EditState>(); EditState state = new EditState();
-        readonly NotifyIcon tray; readonly Timer refresh = new Timer(), rotation = new Timer();
+        readonly NotifyIcon tray; readonly Timer rotation = new Timer();
+        System.Threading.CancellationTokenSource? restoreCancellation;
+        readonly DateTime startupRestoreUntil = DateTime.UtcNow.AddSeconds(45);
+        bool startupOfferShown;
         readonly Button undo, redo, crop, applyCrop, cancelCrop; bool quitting, restoring;
         string? active; bool reapply = true; DateTime nextRotation = DateTime.MaxValue; int rotationMinutes;
         readonly string preferences = Path.Combine(Project.Support, "Preferences.json");
@@ -43,7 +46,7 @@ namespace ScreenSpan
             ((ToolStripMenuItem)edit.DropDownItems.Add("Redo", null, (s, e) => Redo())).ShortcutKeys = Keys.Control | Keys.Y;
             menu.Items.Add(edit);
             menu.Items.Add("Settings", null, (s, e) => Settings());
-            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.3\nSpan, crop, extend and organize desktop wallpapers.", "About"));
+            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.4\nSpan, crop, extend and organize desktop wallpapers.", "About"));
             MainMenuStrip = menu;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 5 };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -79,7 +82,7 @@ namespace ScreenSpan
             actions.Controls.Add(undo);
             actions.Controls.Add(redo);
             actions.Controls.Add(Button("Fade Edges to Black", Fade));
-            actions.Controls.Add(Button("Save Project", () => Run(() => { var folder = Save(); status.Text = "Saved: " + Path.GetFileName(folder); })));
+            actions.Controls.Add(Button("Save Wallpaper", () => Run(() => { var folder = Save(); status.Text = "Saved: " + Path.GetFileName(folder); })));
             actions.Controls.Add(Button("Apply Wallpaper", () => Run(Apply)));
             layout.Controls.Add(actions, 0, 3);
             status.Dock = DockStyle.Fill;
@@ -107,8 +110,6 @@ namespace ScreenSpan
             InitializeFeatures(actions, menu, trayMenu);
             Shown += (s, e) => { var area = Screen.FromControl(this).WorkingArea; int w = Math.Min(Width, Math.Max(400, area.Width - 20)), h = Math.Min(Height, Math.Max(400, area.Height - 20)); MinimumSize = new Size(Math.Min(MinimumSize.Width, w), Math.Min(MinimumSize.Height, h)); Bounds = new Rectangle(area.X + (area.Width - w) / 2, area.Y + (area.Height - h) / 2, w, h); };
             FormClosing += (s, e) => { if (!quitting && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
-            refresh.Interval = 1800;
-            refresh.Tick += (s, e) => { refresh.Stop(); Background(() => { LoadMonitors(); if (reapply) Restore(); }); };
             rotation.Interval = 15000;
             rotation.Tick += (s, e) => { if (rotationMinutes > 0 && !busy && OwnedForms.Length == 0 && !preview.Cropping && DateTime.UtcNow >= nextRotation) { nextRotation = DateTime.UtcNow.AddMinutes(rotationMinutes); Background(Next); } };
             rotation.Start();
@@ -117,7 +118,7 @@ namespace ScreenSpan
             SystemEvents.SessionSwitch += SessionChanged;
             Run(() => { Directory.CreateDirectory(Project.Support); Directory.CreateDirectory(Project.Library); Background(LoadPreferences); LoadMonitors(); if (args.Length > 0 && Directory.Exists(args[0])) OpenProject(args[0]); else if (args.Length > 0 && File.Exists(args[0])) Import(new[] { args[0] }); else if (active != null && Directory.Exists(active)) OpenProject(active); });
             UpdateControls();
-            Shown += (s, e) => { if (reapply) Background(Restore); if (args.Contains("--background")) BeginInvoke((Action)Hide); };
+            Shown += (s, e) => { ScheduleRestoration(); if (args.Contains("--background")) BeginInvoke((Action)Hide); };
         }
         Button Button(string title, Action action)
         {
@@ -312,6 +313,7 @@ namespace ScreenSpan
             active = folder;
             SavePreferences();
             status.Text = "Wallpaper applied and saved in Pictures → ScreenSpan Wallpaper.";
+            OfferStartupRestoration();
         }
         void OpenProject(string path)
         {
@@ -394,7 +396,26 @@ namespace ScreenSpan
         {
             if (IsDisposed || !IsHandleCreated)
                 return;
-            BeginInvoke((Action)(() => { refresh.Stop(); refresh.Start(); }));
+            BeginInvoke((Action)ScheduleRestoration);
+        }
+        async void ScheduleRestoration()
+        {
+            if (IsDisposed || Disposing) return;
+            restoreCancellation?.Cancel();
+            restoreCancellation?.Dispose();
+            restoreCancellation = null;
+            if (IsDisposed || (!reapply && !autoMatch) || (active == null && !autoMatch)) return;
+            restoreCancellation = new System.Threading.CancellationTokenSource();
+            var token = restoreCancellation.Token;
+            await RestorationSchedule.Run(DateTime.UtcNow < startupRestoreUntil,
+                (delay, cancellation) => System.Threading.Tasks.Task.Delay(delay, cancellation),
+                () => !IsDisposed && (reapply || autoMatch), async () =>
+                {
+                    while (busy) await System.Threading.Tasks.Task.Delay(250, token);
+                    if (token.IsCancellationRequested || IsDisposed || (!reapply && !autoMatch)) return;
+                    LoadMonitors();
+                    Restore();
+                }, error => Background(() => { throw error; }), token);
         }
         void DisplaysChanged(object? s, EventArgs e) => Schedule(); void PowerChanged(object? s, PowerModeChangedEventArgs e)
         {
@@ -416,11 +437,24 @@ namespace ScreenSpan
             autoMatch = (bool?)p["autoMatch"] ?? false;
             cpuAI = (bool?)p["cpuAI"] ?? !AIWorker.HasNvidia();
             rotationMinutes = Math.Max(0, (int?)p["rotationMinutes"] ?? 0);
+            startupOfferShown = (bool?)p["startupOfferShown"] ?? false;
             nextRotation = rotationMinutes > 0 ? DateTime.UtcNow.AddMinutes(rotationMinutes) : DateTime.MaxValue;
         }
         void SavePreferences()
         {
-            SafeJson.Write(preferences, new JObject { ["active"] = active, ["reapply"] = reapply, ["rotationMinutes"] = rotationMinutes, ["autoMatch"] = autoMatch, ["cpuAI"] = cpuAI });
+            SafeJson.Write(preferences, new JObject { ["active"] = active, ["reapply"] = reapply, ["rotationMinutes"] = rotationMinutes, ["autoMatch"] = autoMatch, ["cpuAI"] = cpuAI, ["startupOfferShown"] = startupOfferShown });
+        }
+        void OfferStartupRestoration()
+        {
+            if (Project.TestRoot != null || startupOfferShown || (!reapply && !autoMatch)) return;
+            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                if (key?.GetValue("ScreenSpanWallpaper") != null) return;
+            startupOfferShown = true;
+            SavePreferences();
+            if (MessageBox.Show(this, "ScreenSpan needs to start when you sign in to restore this wallpaper after a restart. Enable this now? You can change it later in Settings.",
+                "Restore wallpaper after restart", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                    key.SetValue("ScreenSpanWallpaper", "\"" + Application.ExecutablePath + "\" --background");
         }
         void Settings()
         {
@@ -443,7 +477,9 @@ namespace ScreenSpan
                 SystemEvents.DisplaySettingsChanged -= DisplaysChanged;
                 SystemEvents.PowerModeChanged -= PowerChanged;
                 SystemEvents.SessionSwitch -= SessionChanged;
-                refresh.Dispose();
+                restoreCancellation?.Cancel();
+                restoreCancellation?.Dispose();
+                restoreCancellation = null;
                 rotation.Dispose();
                 tray.Visible = false;
                 tray.Dispose();

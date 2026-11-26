@@ -47,6 +47,16 @@ namespace ScreenSpan
                     var state = new EditState { ImagePath = input, Name = "test.png", Frame = new Framing() };
                     string saved = Project.Save(state, fake);
                     var reopened = Project.Open(saved);
+                    Check(Project.Save(state, fake) == saved, "Save then Apply reuses unchanged wallpaper", lines);
+                    Check(Project.Save(reopened, fake) == saved, "reopened wallpaper saves without duplication", lines);
+                    string dedupe = Path.Combine(root, "Dedupe");
+                    string baseline = Project.Save(state, fake, dedupe);
+                    var changed = state.Copy(); changed.Frame.Zoom = 1.5;
+                    Check(Project.Save(changed, fake, dedupe) != baseline, "changed framing saves a distinct version", lines);
+                    var legacy = SafeJson.Read(Path.Combine(baseline, "Settings.json"));
+                    legacy.Remove("contentFingerprint"); File.WriteAllText(Path.Combine(baseline, "Settings.json"), legacy.ToString());
+                    Check(Project.Save(state, fake, dedupe) == baseline, "legacy wallpaper reused without fingerprint", lines);
+
                     using (var check = Project.Load(reopened.ImagePath))
                         Check(check.Width == 400 && check.Height == 100, "format 2 source dimensions", lines);
                     Check(new[] { "Wallpaper.png", "Thumbnail.png", "Displays/Display-1.png", "Displays/Display-2.png" }.All(p => File.Exists(Path.Combine(saved, p))), "combined, thumbnail and per-monitor exports", lines);
@@ -67,6 +77,14 @@ namespace ScreenSpan
                             Check(Math.Abs(right.GetPixel(100, 50).G - 128) < 3, "dimming in actual renderer", lines);
                         string grouped = Project.Save(state, fake);
                         var opened = Project.Open(grouped);
+                        Check(Project.Save(opened, fake) == grouped, "grouped wallpaper reuses unchanged assets", lines);
+                        string changedGroups = Path.Combine(root, "ChangedGroups");
+                        string originalGroup = Project.Save(state, fake, changedGroups);
+                        var replacement = state.Copy(); replacement.Groups[1] = input;
+                        Check(Project.Save(replacement, fake, changedGroups) != originalGroup, "changed group pixels create a new version", lines);
+                        var replacedImage = state.Copy(); replacedImage.ImagePath = gp;
+                        Check(Project.Save(replacedImage, fake, changedGroups) != originalGroup, "changed source pixels create a new version", lines);
+
                         Check(opened.Groups.ContainsKey(1) && opened.Design.monitors[0].group == 1, "group image and appearance project round trip", lines);
                         File.Move(Path.Combine(grouped, "Group-1.png"), Path.Combine(grouped, "missing.png"));
                         bool rejected = false;

@@ -1,4 +1,6 @@
-# Windows 1.0.3 validation
+# Windows 1.0.4 validation
+
+November 26, 2026: added regression checks for Save/Apply reuse, reopened and legacy wallpaper reuse, changed framing/source/group images, and startup retry recovery, cancellation and disabled settings. The cross-platform suite now contains 30 checks. A fresh Windows CI run executes the rendering and installer checks for 1.0.4. Full machine reboot testing remains outstanding.
 
 The November 21, 2026 icon update adds the shared Spectrum artwork to the application and installer. Its ICO contains 10 PNG sizes from 16 to 256 pixels. Build and standalone installer reports for 1.0.3 are attached to its release. The functional checks below describe the existing Windows validation and continue to run during packaging.
 

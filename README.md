@@ -4,8 +4,8 @@ ScreenSpan Wallpaper creates desktop wallpapers across multiple displays, with n
 
 ## Downloads
 
-- **Windows 10/11, 64-bit:** [Windows 1.0.3 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.3). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
-- **macOS 13 or newer:** [Mac 1.4.2 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.2). Download the DMG. The Mac version supports Apple Silicon and Intel.
+- **Windows 10/11, 64-bit:** [Windows 1.0.4 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.4). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
+- **macOS 13 or newer:** [Mac 1.4.3 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.3). Download the DMG. The Mac version supports Apple Silicon and Intel.
 
 Windows code and its build script live in `Windows/`. The Swift files and build scripts at the repository root are the Mac application. Windows and Mac have separate version tags and downloads; a Windows release does not replace the Mac latest-release link.
 
@@ -13,7 +13,7 @@ The following sections describe the Mac application. The Windows guide explains 
 
 ## Install on macOS
 
-These instructions cover ScreenSpan Wallpaper 1.4.2.
+These instructions cover ScreenSpan Wallpaper 1.4.3.
 
 Mac 1.4.1 and Windows 1.0.3 use the new Spectrum app icon: two white monitors with a continuous colorful wallpaper. The Mac icon includes Retina sizes, and the Windows application and installer include icon sizes from 16 to 256 pixels. To regenerate the Windows icon from the shared `AppIcon.png` on a Mac, run `python3 Tools/build_windows_icon.py`.
 
@@ -50,17 +50,17 @@ Favorite projects in the library, then enable **Rotate favorite wallpapers** in 
 
 Click **Crop Image** beside Framing to select a crop matching the combined display layout. Drag inside the rectangle to move it, or drag any of its four corner handles to resize it. The ratio stays locked to the connected displays. Scroll up to zoom into the image and scroll down to zoom out. The darkened area falls outside the crop.
 
-Click **Apply Crop** to commit the selection, or **Cancel Crop** to return to the previous preview. **Undo** and **Redo** restore the image and framing before or after the crop. **Save Project** saves the cropped image and its wallpaper settings.
+Click **Apply Crop** to commit the selection, or **Cancel Crop** to return to the previous preview. **Undo** and **Redo** restore the image and framing before or after the crop. **Save Wallpaper** saves the cropped image and its wallpaper settings.
 
 ## Combine multiple images
 
 Select multiple images in **Choose Image** or drop several image files into the preview. **Combine Images** shows their order and a preview. Use the arrows to change the order, and choose **Side by Side** or **Stacked**. Click **Combine Images** to edit the result as one wallpaper.
 
-Images are initially sorted by filename using natural number order. Each image keeps its proportions and is scaled to the smallest shared height (side by side) or width (stacked). Combined images are limited to 64 megapixels. Matching 1,920 × 1,080 halves form a 3,840 × 1,080 image. **Save Project** stores the combined image and framing in a .ssw project.
+Images are initially sorted by filename using natural number order. Each image keeps its proportions and is scaled to the smallest shared height (side by side) or width (stacked). Combined images are limited to 64 megapixels. Matching 1,920 × 1,080 halves form a 3,840 × 1,080 image. **Save Wallpaper** stores the combined image and framing in a .ssw project.
 
 ## Saved wallpaper projects
 
-**Apply Wallpaper** automatically saves a new project in **Pictures/ScreenSpan Wallpaper**. Use **Save Project** (Command–S) to save your current edit without changing the desktop. Each save creates a separate file.
+**Apply Wallpaper** automatically saves in **Pictures/ScreenSpan Wallpaper**. Use **Save Wallpaper** (Command–S) to save your current edit without changing the desktop. Saving and then applying an unchanged wallpaper reuses the same library entry. Repeated saves and reopening an unchanged wallpaper also reuse it, including older projects. Changing the image, framing, display layout, appearance or group images saves a separate version. Existing duplicate copies are not deleted automatically.
 
 A project has the extension `.ssw` and contains `Image.png` (the imported or AI-edited image), `Wallpaper.png` (the finished wallpaper with the chosen framing), `Displays/` (one PNG per monitor), and `Settings.json` (format version, framing, zoom, position, and display layout). The finished combined wallpaper is limited to 64 megapixels. The per-monitor PNGs retain each monitor’s output resolution.
 
@@ -80,7 +80,7 @@ Open **ScreenSpan Wallpaper → Settings** or press **Command–Comma** to show 
 
 **For restoration after a restart, enable Open at Login and at least one wallpaper restoration option.** ScreenSpan must run after you sign in to reapply the saved panorama. Settings shows whether this is enabled; after a manual Apply, the app offers to enable Open at Login once if it is off.
 
-Mac 1.4.2 uses physical monitor identities for cached wallpaper files, so changing display numbers after a reboot does not swap their image associations. Startup restoration retries for about 30 seconds while macOS finishes connecting displays and loading wallpapers. Display/Space changes also receive bounded retries. Missing or unreadable cached images are regenerated. A local diagnostic file, `~/Library/Application Support/HorizonSpan/WallpaperRestore.log`, records restore attempts and errors.
+Since Mac 1.4.2, ScreenSpan uses physical monitor identities for cached wallpaper files, so changing display numbers after a reboot does not swap their image associations. Startup restoration retries for about 30 seconds while macOS finishes connecting displays and loading wallpapers. Display/Space changes also receive bounded retries. Missing or unreadable cached images are regenerated. A local diagnostic file, `~/Library/Application Support/HorizonSpan/WallpaperRestore.log`, records restore attempts and errors.
 
 The universal build targets Apple Silicon and Intel Macs running macOS 13 or later. It has been tested on Apple Silicon. The current disk image contains an ad hoc signed app. It has no Apple Developer ID signature or notarization, so macOS may block a downloaded copy on another Mac. See [Apple’s guide to opening downloaded apps](https://support.apple.com/en-us/102445).
 
@@ -121,3 +121,5 @@ Run `zsh Tests/run.sh`. The checks use temporary projects and simulated displays
 The startup checks also simulate changed display numbers and order after reboot, independent-image assignments, unreadable cached PNGs, delayed second-display discovery, a later macOS wallpaper overwrite, and cancellation/disabled restoration. These simulations do not replace a full reboot or physical reconnection test. See [startup validation notes](Tests/STARTUP_VALIDATION.md).
 
 The 1.4.0 release was also checked through the app interface on Apple Silicon, including library renaming and favorites, independent monitor images, saved appearance settings, the update checker, and timed rotation. Physical monitor reconnection and an Intel runtime still need testing.
+
+Windows 1.0.4 also retries restoration during sign-in and after display changes. Enable **Start at sign-in** and wallpaper restoration in Windows Settings. Windows already identifies monitors using persistent device paths; the Mac display-number fix is specific to macOS.

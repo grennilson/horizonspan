@@ -68,6 +68,22 @@ namespace ScreenSpan
             state.Design.Validate();
             library = library ?? Library;
             Directory.CreateDirectory(library);
+            var displays = new JArray(monitors.Select(m => new JObject { ["name"] = m.Name, ["frame"] = new JArray(new JArray(m.Bounds.X, -m.Bounds.Bottom), new JArray(m.Bounds.Width, m.Bounds.Height)), ["pixelWidth"] = (int)m.Bounds.Width, ["pixelHeight"] = (int)m.Bounds.Height }));
+            string fingerprint = WallpaperFingerprint.Of(state, displays);
+            foreach (string candidate in Directory.GetDirectories(library, "*.ssw").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var manifest = SafeJson.Read(Path.Combine(candidate, "Settings.json"));
+                    string? previous = (string?)manifest["contentFingerprint"];
+                    if (previous != null && previous != fingerprint) continue;
+                    if (!JToken.DeepEquals(manifest["displays"], displays)) continue;
+                    if (!new[] { "Wallpaper.png", "Thumbnail.png" }.Concat(Enumerable.Range(1, monitors.Count).Select(i => "Displays/Display-" + i + ".png")).All(p => File.Exists(Path.Combine(candidate, p)))) continue;
+                    if (WallpaperFingerprint.Of(Open(candidate), displays) == fingerprint)
+                        return candidate;
+                }
+                catch (Exception error) when (error is IOException || error is ArgumentException || error is Newtonsoft.Json.JsonException || error is System.Runtime.InteropServices.ExternalException) { }
+            }
             string id = Guid.NewGuid().ToString().ToUpperInvariant();
             string name = Path.GetFileNameWithoutExtension(state.Name);
             foreach (char c in Path.GetInvalidFileNameChars())
@@ -82,8 +98,7 @@ namespace ScreenSpan
             {
                 using (var source = Load(state.ImagePath))
                     source.Save(Path.Combine(temp, "Image.png"), ImageFormat.Png);
-                var design = state.Design.Copy();
-                design.customGroups = design.monitors.Select(m => m.group).Where(g => g > 0 && state.Groups.ContainsKey(g)).Distinct().ToList();
+                var design = WallpaperFingerprint.SavedDesign(state);
                 foreach (int group in design.customGroups)
                 using (var image = Load(state.Groups[group]))
                     image.Save(Path.Combine(temp, "Group-" + group + ".png"), ImageFormat.Png);
@@ -98,8 +113,7 @@ namespace ScreenSpan
                     using (var thumb = rendered.Combined(240000))
                         thumb.Save(Path.Combine(temp, "Thumbnail.png"), ImageFormat.Png);
                 }
-                var displays = new JArray(monitors.Select(m => new JObject { ["name"] = m.Name, ["frame"] = new JArray(new JArray(m.Bounds.X, -m.Bounds.Bottom), new JArray(m.Bounds.Width, m.Bounds.Height)), ["pixelWidth"] = (int)m.Bounds.Width, ["pixelHeight"] = (int)m.Bounds.Height }));
-                var settings = new JObject { ["formatVersion"] = 2, ["wallpaper"] = new JObject { ["id"] = id, ["filename"] = state.Name, ["framing"] = state.Frame.Mode, ["zoom"] = state.Frame.Zoom, ["pan"] = new JArray(state.Frame.PanX, state.Frame.PanY), ["design"] = JObject.FromObject(design) }, ["displays"] = displays };
+                var settings = new JObject { ["formatVersion"] = 2, ["contentFingerprint"] = fingerprint, ["wallpaper"] = new JObject { ["id"] = id, ["filename"] = state.Name, ["framing"] = state.Frame.Mode, ["zoom"] = state.Frame.Zoom, ["pan"] = new JArray(state.Frame.PanX, state.Frame.PanY), ["design"] = JObject.FromObject(design) }, ["displays"] = displays };
                 File.WriteAllText(Path.Combine(temp, "Settings.json"), settings.ToString());
                 Directory.Move(temp, output);
                 return output;

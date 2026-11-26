@@ -188,6 +188,13 @@ namespace ScreenSpan
                 using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
                     start.Checked = key?.GetValue("ScreenSpanWallpaper") != null;
                 panel.Controls.Add(start);
+                var startupHelp = new Label { AutoSize = true, MaximumSize = new Size(530, 0) };
+                Action explainStartup = () => startupHelp.Text = start.Checked
+                    ? "ScreenSpan will start at sign-in. Enabled restoration options retry while Windows finishes connecting displays."
+                    : "Start at sign-in is off. Enable it to restore wallpapers automatically after restarting Windows.";
+                start.CheckedChanged += (s, e) => explainStartup();
+                explainStartup();
+                panel.Controls.Add(startupHelp);
                 var update = new Button { Text = "Check for Updates…", AutoSize = true };
                 update.Click += (s, e) => CheckUpdates();
                 panel.Controls.Add(update);
@@ -209,6 +216,7 @@ namespace ScreenSpan
                             key.DeleteValue("ScreenSpanWallpaper", false);
                     }
                     SavePreferences();
+                    ScheduleRestoration();
                 }
             }
         }
@@ -221,7 +229,8 @@ namespace ScreenSpan
                     http.DefaultRequestHeaders.UserAgent.ParseAdd("ScreenSpan-Wallpaper/1.0.0");
                     string json = await http.GetStringAsync("https://api.github.com/repos/grennilson/horizonspan/releases?per_page=100");
                     var release = JArray.Parse(json).Where(r => (bool?)r["draft"] != true && (bool?)r["prerelease"] != true && ReleaseVersions.Parse((string?)r["tag_name"] ?? "") != null).OrderByDescending(r => ReleaseVersions.Parse((string)r["tag_name"]!)).FirstOrDefault();
-                    if (release != null && ReleaseVersions.IsNewer((string)release["tag_name"]!, "1.0.0"))
+                    string currentVersion = typeof(MainWindow).Assembly.GetName().Version!.ToString(3);
+                    if (release != null && ReleaseVersions.IsNewer((string)release["tag_name"]!, currentVersion))
                     {
                         string url = (string?)release["html_url"] ?? "";
                         var uri = new Uri(url);
@@ -231,7 +240,7 @@ namespace ScreenSpan
                             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
                     }
                     else
-                        MessageBox.Show(this, "You are running the latest Windows version (1.0.0).", "ScreenSpan Updates");
+                        MessageBox.Show(this, "You are running the latest Windows version (" + currentVersion + ").", "ScreenSpan Updates");
                 }
             }
             catch (Exception e) { MessageBox.Show(this, "Could not check for updates: " + e.Message, "ScreenSpan Updates"); }
