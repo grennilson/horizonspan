@@ -5,7 +5,7 @@ ScreenSpan Wallpaper creates desktop wallpapers across multiple displays, with n
 ## Downloads
 
 - **Windows 10/11, 64-bit:** [Windows 1.0.3 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.3). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
-- **macOS 13 or newer:** [Mac 1.4.1 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.1). Download the DMG. The Mac version supports Apple Silicon and Intel.
+- **macOS 13 or newer:** [Mac 1.4.2 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.2). Download the DMG. The Mac version supports Apple Silicon and Intel.
 
 Windows code and its build script live in `Windows/`. The Swift files and build scripts at the repository root are the Mac application. Windows and Mac have separate version tags and downloads; a Windows release does not replace the Mac latest-release link.
 
@@ -13,7 +13,7 @@ The following sections describe the Mac application. The Windows guide explains 
 
 ## Install on macOS
 
-These instructions cover ScreenSpan Wallpaper 1.4.1.
+These instructions cover ScreenSpan Wallpaper 1.4.2.
 
 Mac 1.4.1 and Windows 1.0.3 use the new Spectrum app icon: two white monitors with a continuous colorful wallpaper. The Mac icon includes Retina sizes, and the Windows application and installer include icon sizes from 16 to 256 pixels. To regenerate the Windows icon from the shared `AppIcon.png` on a Mac, run `python3 Tools/build_windows_icon.py`.
 
@@ -78,6 +78,10 @@ Click the two-display icon at the right of the menu bar to open the editor, choo
 
 Open **ScreenSpan Wallpaper → Settings** or press **Command–Comma** to show or hide the menu bar icon, manage **Open at Login**, and control automatic restoration separately for macOS desktops and display changes. After upgrading from 1.3.2 or earlier, apply your preferred wallpaper once to save it for restoration.
 
+**For restoration after a restart, enable Open at Login and at least one wallpaper restoration option.** ScreenSpan must run after you sign in to reapply the saved panorama. Settings shows whether this is enabled; after a manual Apply, the app offers to enable Open at Login once if it is off.
+
+Mac 1.4.2 uses physical monitor identities for cached wallpaper files, so changing display numbers after a reboot does not swap their image associations. Startup restoration retries for about 30 seconds while macOS finishes connecting displays and loading wallpapers. Display/Space changes also receive bounded retries. Missing or unreadable cached images are regenerated. A local diagnostic file, `~/Library/Application Support/HorizonSpan/WallpaperRestore.log`, records restore attempts and errors.
+
 The universal build targets Apple Silicon and Intel Macs running macOS 13 or later. It has been tested on Apple Silicon. The current disk image contains an ad hoc signed app. It has no Apple Developer ID signature or notarization, so macOS may block a downloaded copy on another Mac. See [Apple’s guide to opening downloaded apps](https://support.apple.com/en-us/102445).
 
 ## Extend edges and enhance detail
@@ -108,10 +112,12 @@ Fork the repository and open a pull request with a description of what you chang
 
 For a change to rendering, try a numbered grid or a photo with recognizable landmarks across displays with different scaling or vertical positions. Check that the preview agrees with the desktop after you click **Apply Wallpaper**. For a layout bug, include your macOS version, display arrangement, and scaling settings.
 
-`CropPreview.swift` implements crop handles and scroll zoom. `CombineImages.swift` handles image ordering and combining. `WallpaperDesign.swift` renders display groups, alignment, and appearance. `WallpaperLibrary.swift` stores names, favorites, and monitor setup associations. `WallpaperFeatures.swift` contains their interfaces, rotation, and update checking.
+`CropPreview.swift` implements crop handles and scroll zoom. `CombineImages.swift` handles image ordering and combining. `WallpaperDesign.swift` renders display groups, alignment, and appearance. `WallpaperLibrary.swift` stores names, favorites, and monitor setup associations. `WallpaperFeatures.swift` contains their interfaces, rotation, and update checking. `WallpaperRestoration.swift` contains the bounded restoration schedule and local diagnostic logging.
 
 ## Run regression checks
 
 Run `zsh Tests/run.sh`. The checks use temporary projects and simulated displays to verify spanning, separate sources, mixed resolutions, display groups, appearance, older project compatibility, library metadata, monitor setup associations, version comparison, and crop undo/redo.
+
+The startup checks also simulate changed display numbers and order after reboot, independent-image assignments, unreadable cached PNGs, delayed second-display discovery, a later macOS wallpaper overwrite, and cancellation/disabled restoration. These simulations do not replace a full reboot or physical reconnection test. See [startup validation notes](Tests/STARTUP_VALIDATION.md).
 
 The 1.4.0 release was also checked through the app interface on Apple Silicon, including library renaming and favorites, independent monitor images, saved appearance settings, the update checker, and timed rotation. Physical monitor reconnection and an Intel runtime still need testing.

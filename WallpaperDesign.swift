@@ -73,15 +73,6 @@ struct WallpaperDesign: Codable, Equatable {
     }
 }
 
-extension Display {
-    var hardwareKey: String {
-        if let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() {
-            return CFUUIDCreateString(nil, uuid) as String
-        }
-        return "\(name)-\(id)"
-    }
-}
-
 enum WallpaperRenderer {
     static func images(source: CGImage, wallpaper: SavedWallpaper, displays: [Display],
                        assets: [Int: SourceImage] = [:], preview: Bool = false) throws -> [CGImage] {
@@ -95,7 +86,7 @@ enum WallpaperRenderer {
             let limit: CGFloat = preview ? min(1, 640 / CGFloat(max(display.pixelWidth, display.pixelHeight))) : 1
             return Display(id: display.id, name: display.name, frame: frame,
                            pixelWidth: max(1, Int(CGFloat(display.pixelWidth) * limit)),
-                           pixelHeight: max(1, Int(CGFloat(display.pixelHeight) * limit)))
+                           pixelHeight: max(1, Int(CGFloat(display.pixelHeight) * limit)), persistentID: display.hardwareKey)
         }
         var prepared: [Int: CGImage] = [:]
         return try displays.enumerated().map { index, display in

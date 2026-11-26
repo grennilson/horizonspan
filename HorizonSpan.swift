@@ -11,6 +11,23 @@ struct Display: Identifiable {
     let frame: CGRect
     let pixelWidth: Int
     let pixelHeight: Int
+    let hardwareKey: String
+
+    init(id: UInt32, name: String, frame: CGRect, pixelWidth: Int, pixelHeight: Int,
+         persistentID: String? = nil) {
+        self.id = id
+        self.name = name
+        self.frame = frame
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        if let persistentID {
+            hardwareKey = persistentID
+        } else if let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() {
+            hardwareKey = CFUUIDCreateString(nil, uuid) as String
+        } else {
+            hardwareKey = "\(name)-\(id)"
+        }
+    }
 
     static func connected() -> [Display] {
         NSScreen.screens.compactMap { screen in
@@ -239,6 +256,7 @@ final class WallpaperState: ObservableObject {
     @Published var checkingUpdates = false
     private var observers = Set<AnyCancellable>()
     private var restoreTask: Task<Void, Never>?
+    private let startupRestoreUntil = Date().addingTimeInterval(45)
 
     init(observeSystem: Bool = true) {
         saved = store?.current()
@@ -265,6 +283,7 @@ final class WallpaperState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshLoginStatus() }
             .store(in: &observers)
+        WallpaperRestoreLog.record("Started; saved=\(saved?.id.uuidString ?? "none"); login=\(loginStatus.rawValue)")
         scheduleRestore(matchSetup: true) {
             WallpaperPreferences.restoreOnDisplays() || WallpaperPreferences.syncSpaces() || self.autoMatchSetups
         }
@@ -464,6 +483,7 @@ final class WallpaperState: ObservableObject {
             do {
                 try await applyPrepared(source: source, wallpaper: wallpaper, assets: groupImages, archive: true)
                 refreshLibrary()
+                offerStartupRestoration()
             } catch { errorMessage = error.localizedDescription }
         }
     }
@@ -518,13 +538,11 @@ final class WallpaperState: ObservableObject {
         guard saved != nil, enabled() else { return }
         restoreTask?.cancel()
         restoreTask = Task { [weak self] in
-            // A display or Space change can finish after macOS sends the notification.
-            try? await Task.sleep(for: .milliseconds(650))
-            guard !Task.isCancelled, enabled() else { return }
-            await self?.restore(force: true, matchSetup: matchSetup, when: enabled)
-            try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled, enabled() else { return }
-            await self?.restore(force: false, matchSetup: matchSetup, when: enabled)
+            guard let self else { return }
+            let delays = Date() < self.startupRestoreUntil ? WallpaperRestoreSchedule.startup : WallpaperRestoreSchedule.changed
+            await WallpaperRestoreSchedule.run(delays: delays, enabled: enabled) { [weak self] in
+                await self?.restore(force: true, matchSetup: matchSetup, when: enabled)
+            }
         }
     }
 
@@ -541,6 +559,7 @@ final class WallpaperState: ObservableObject {
         }
         guard wallpaper.id == saved?.id, !Task.isCancelled, enabled() else { return }
         let targets = Display.connected()
+        WallpaperRestoreLog.record("Restore \(wallpaper.id); displays=\(targets.count); force=\(force)")
         if matchSetup, autoMatchSetups, let entry = matchedSetup(for: targets), entry.id != wallpaper.id {
             isApplying = true
             defer { isApplying = false }
@@ -556,7 +575,10 @@ final class WallpaperState: ObservableObject {
                     zoom = selection.zoom
                     pan = selection.pan
                 }
-            } catch { status = "Couldn’t restore the saved monitor setup" }
+            } catch {
+                WallpaperRestoreLog.record("Monitor setup restore failed: \(error.localizedDescription)")
+                status = "Couldn’t restore the saved monitor setup"
+            }
             return
         }
         guard !targets.isEmpty else { return }
@@ -571,6 +593,7 @@ final class WallpaperState: ObservableObject {
             }.value
             guard !Task.isCancelled, enabled() else { return }
             try assign(urls, to: targets, skipMatching: !force)
+            WallpaperRestoreLog.record("Restored \(wallpaper.id) to \(targets.map(\.name).joined(separator: ", "))")
             if self.source == nil {
                 self.source = source
                 design = wallpaper.design ?? .standard
@@ -581,12 +604,28 @@ final class WallpaperState: ObservableObject {
             }
             if reportResult { status = "Restored saved wallpaper" }
         } catch {
+            if !Task.isCancelled { WallpaperRestoreLog.record("Restore failed: \(error.localizedDescription)") }
             if reportResult && !Task.isCancelled { errorMessage = error.localizedDescription }
         }
     }
 
     func refreshLoginStatus() {
         loginStatus = SMAppService.mainApp.status
+    }
+
+    private func offerStartupRestoration() {
+        refreshLoginStatus()
+        let defaults = UserDefaults.standard
+        guard loginStatus != .enabled,
+              WallpaperPreferences.restoreOnDisplays() || WallpaperPreferences.syncSpaces() || autoMatchSetups,
+              !defaults.bool(forKey: "startupRestorationOfferShown") else { return }
+        defaults.set(true, forKey: "startupRestorationOfferShown")
+        let alert = NSAlert()
+        alert.messageText = "Restore this wallpaper after restarting?"
+        alert.informativeText = "ScreenSpan needs to open at login to restore your wallpaper as macOS finishes connecting the displays. You can change this later in Settings."
+        alert.addButton(withTitle: "Enable Open at Login")
+        alert.addButton(withTitle: "Not Now")
+        if alert.runModal() == .alertFirstButtonReturn { toggleOpenAtLogin() }
     }
 
     func toggleOpenAtLogin() {
@@ -987,6 +1026,15 @@ struct WallpaperSettings: View {
                     .disabled(model.loginStatus == .requiresApproval)
                 if model.loginStatus == .requiresApproval {
                     Button("Approve in System Settings…", action: model.toggleOpenAtLogin)
+                } else if model.loginStatus != .enabled {
+                    Text("Open at Login is off. Enable it so ScreenSpan can restore your wallpaper after a restart.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if restoreOnDisplays || syncSpaces || model.autoMatchSetups {
+                    Text("ScreenSpan will open at login and restore your last applied wallpaper while displays finish connecting.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Open at Login is enabled. Turn on a wallpaper restoration option below to restore the wallpaper automatically.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Wallpaper") {

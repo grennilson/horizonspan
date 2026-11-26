@@ -30,7 +30,7 @@ import UniformTypeIdentifiers
         guard condition() else { fatalError(message) }
     }
 
-    @MainActor static func main() throws {
+    @MainActor static func main() async throws {
         let files = FileManager.default
         let folder = files.temporaryDirectory.appendingPathComponent("ScreenSpan-Tests-\(UUID().uuidString)")
         try files.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -124,6 +124,58 @@ import UniformTypeIdentifiers
         let oneMonitor = try cache.render(input, wallpaper: groups, displays: [left], assets: assets)
         check(oneMonitor[0] != rendered[0], "Changed display arrangements need distinct renders")
 
+        // CG display numbers can change at reboot; physical monitor identity and
+        // its cached file association must survive that change and enumeration order.
+        let stableLeft = Display(id: 910001, name: "Left", frame: left.frame, pixelWidth: 80, pixelHeight: 40, persistentID: "physical-left")
+        let stableRight = Display(id: 910002, name: "Right", frame: right.frame, pixelWidth: 40, pixelHeight: 20, persistentID: "physical-right")
+        let restartedLeft = Display(id: 920004, name: "Left", frame: left.frame, pixelWidth: 80, pixelHeight: 40, persistentID: "physical-left")
+        let restartedRight = Display(id: 920003, name: "Right", frame: right.frame, pixelWidth: 40, pixelHeight: 20, persistentID: "physical-right")
+        try cache.store(input, as: legacy)
+        let stableURLs = try cache.render(input, wallpaper: legacy, displays: [stableLeft, stableRight])
+        let restartedURLs = try cache.render(input, wallpaper: legacy, displays: [restartedRight, restartedLeft])
+        check(stableURLs[0] == restartedURLs[1] && stableURLs[1] == restartedURLs[0],
+              "Restarted monitors must retain their physical cached image associations")
+        let restartedImage = try SourceImage(url: restartedURLs[1])
+        check(rgb(restartedImage.image, x: 40, y: 20)[0] > 250, "Restart must not swap panorama halves")
+        try Data("damaged cache".utf8).write(to: stableURLs[0], options: .atomic)
+        let repairedURLs = try cache.render(input, wallpaper: legacy, displays: [restartedLeft, restartedRight])
+        let repairedImage = try SourceImage(url: repairedURLs[0])
+        check(repairedImage.image.width == 80, "Unreadable cached PNGs must be rendered again")
+        var stableDesign = design
+        stableDesign.monitors = [MonitorPlacement(key: stableLeft.hardwareKey, group: 1),
+                                 MonitorPlacement(key: stableRight.hardwareKey, group: 2)]
+        let stableGroups = SavedWallpaper(source: source, framing: .fill, zoom: 1, pan: .zero, design: stableDesign)
+        let restartedGroups = try WallpaperRenderer.images(source: input, wallpaper: stableGroups,
+            displays: [restartedLeft, restartedRight], assets: assets)
+        check(rgb(restartedGroups[0])[1] > 250 && rgb(restartedGroups[1])[0] > 250,
+              "Independent monitor sources must follow physical monitors after reboot")
+
+        var attempts = 0
+        var connected = 1
+        var desktop = ["macOS", "macOS"]
+        await WallpaperRestoreSchedule.run(delays: WallpaperRestoreSchedule.startup, wait: { _ in
+            if attempts == 1 { connected = 2 }
+            if attempts == 3 { desktop = ["macOS", "macOS"] }
+        }, enabled: { true }, attempt: {
+            attempts += 1
+            if attempts == 1 { return } // A transient startup failure must not stop retries.
+            if connected == 2 { desktop = ["saved-left", "saved-right"] }
+        })
+        check(attempts == 5 && desktop == ["saved-left", "saved-right"],
+              "Late display discovery and a later macOS overwrite must be repaired")
+        var disabledAttempts = 0
+        await WallpaperRestoreSchedule.run(delays: WallpaperRestoreSchedule.startup, wait: { _ in },
+            enabled: { disabledAttempts == 0 }, attempt: { disabledAttempts += 1 })
+        check(disabledAttempts == 1, "Turning off restoration must stop later attempts")
+        var canceledAttempts = 0
+        let canceled = Task { @MainActor in
+            await WallpaperRestoreSchedule.run(delays: WallpaperRestoreSchedule.startup, wait: { _ in },
+                enabled: { true }, attempt: { canceledAttempts += 1 })
+        }
+        canceled.cancel()
+        await canceled.value
+        check(canceledAttempts == 0, "A superseded restoration task must not assign wallpapers")
+
         let oldFolder = libraryRoot.appendingPathComponent("Old.ssw")
         try files.createDirectory(at: oldFolder, withIntermediateDirectories: false)
         var oldJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WallpaperProject(formatVersion: 1, wallpaper: legacy, displays: []))) as! [String:Any]
@@ -181,6 +233,7 @@ import UniformTypeIdentifiers
         print("PASS — spanning, mixed resolutions, independent sources, alignment, appearance, backgrounds")
         print("PASS — project portability, legacy projects, restore cache, thumbnails, library metadata and monitor profiles")
         print("PASS — numeric update versions, crop undo/redo and rotation deadlines")
+        print("PASS — stable monitor identities after reboot, damaged cache recovery, delayed startup retries and cancellation")
     }
 
     static func tryAssets(_ url: URL, settings: SavedWallpaper) -> Int { (try? WallpaperProject.assets(at: url, settings: settings).count) ?? -1 }

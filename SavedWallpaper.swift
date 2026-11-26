@@ -64,15 +64,22 @@ struct WallpaperStore {
     }
 
     func render(_ image: CGImage, wallpaper: SavedWallpaper, displays: [Display], assets: [Int: SourceImage] = [:]) throws -> [URL] {
-        let geometry = displays.map {
-            "\($0.id):\($0.frame.minX),\($0.frame.minY),\($0.frame.width),\($0.frame.height):\($0.pixelWidth)x\($0.pixelHeight)"
-        }.joined(separator: "|")
+        let geometry = "physical-displays-v2|" + WallpaperDesign.setupKey(displays)
         let folder = directory(for: wallpaper)
         let key = SHA256.hash(data: Data(geometry.utf8)).map { String(format: "%02x", $0) }.joined()
         let output = folder.appendingPathComponent(key, isDirectory: true)
-        let urls = displays.map { output.appendingPathComponent("display-\($0.id).png") }
+        let urls = displays.map {
+            let identity = SHA256.hash(data: Data($0.hardwareKey.utf8)).map { String(format: "%02x", $0) }.joined()
+            return output.appendingPathComponent("display-\(identity).png")
+        }
         let files = FileManager.default
-        if urls.allSatisfy({ files.fileExists(atPath: $0.path) }) { return urls }
+        if zip(urls, displays).allSatisfy({ url, display in
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let width = properties[kCGImagePropertyPixelWidth] as? Int,
+                  let height = properties[kCGImagePropertyPixelHeight] as? Int else { return false }
+            return width == display.pixelWidth && height == display.pixelHeight
+        }) { return urls }
 
         let staging = folder.appendingPathComponent(".\(UUID().uuidString)", isDirectory: true)
         try files.createDirectory(at: staging, withIntermediateDirectories: false)

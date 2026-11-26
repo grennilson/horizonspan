@@ -12,7 +12,7 @@ mkdir -p "$iconset" "$app/Contents/MacOS" "$app/Contents/Resources"
 
 for arch in arm64 x86_64; do
     xcrun swiftc -parse-as-library -O -target "$arch-apple-macosx13.0" \
-        HorizonSpan.swift LocalImageAI.swift SavedWallpaper.swift WallpaperProject.swift CombineImages.swift CropPreview.swift WallpaperDesign.swift WallpaperLibrary.swift WallpaperFeatures.swift -o "$scratch/HorizonSpan-$arch"
+        HorizonSpan.swift LocalImageAI.swift SavedWallpaper.swift WallpaperRestoration.swift WallpaperProject.swift CombineImages.swift CropPreview.swift WallpaperDesign.swift WallpaperLibrary.swift WallpaperFeatures.swift -o "$scratch/HorizonSpan-$arch"
 done
 lipo -create "$scratch/HorizonSpan-arm64" "$scratch/HorizonSpan-x86_64" \
     -output "$app/Contents/MacOS/HorizonSpan"
