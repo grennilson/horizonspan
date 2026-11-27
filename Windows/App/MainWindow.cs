@@ -21,6 +21,7 @@ namespace ScreenSpan
         readonly DateTime startupRestoreUntil = DateTime.UtcNow.AddSeconds(45);
         bool startupOfferShown;
         readonly Button undo, redo, crop, applyCrop, cancelCrop; bool quitting, restoring;
+        string? editingProject;
         string? active; bool reapply = true; DateTime nextRotation = DateTime.MaxValue; int rotationMinutes;
         readonly string preferences = Path.Combine(Project.Support, "Preferences.json");
         public MainWindow(string[] args)
@@ -46,7 +47,7 @@ namespace ScreenSpan
             ((ToolStripMenuItem)edit.DropDownItems.Add("Redo", null, (s, e) => Redo())).ShortcutKeys = Keys.Control | Keys.Y;
             menu.Items.Add(edit);
             menu.Items.Add("Settings", null, (s, e) => Settings());
-            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.4\nSpan, crop, extend and organize desktop wallpapers.", "About"));
+            menu.Items.Add("About", null, (s, e) => MessageBox.Show("ScreenSpan Wallpaper\nWindows 1.0.5\nSpan, crop, extend and organize desktop wallpapers.", "About"));
             MainMenuStrip = menu;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 5 };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -83,6 +84,7 @@ namespace ScreenSpan
             actions.Controls.Add(redo);
             actions.Controls.Add(Button("Fade Edges to Black", Fade));
             actions.Controls.Add(Button("Save Wallpaper", () => Run(() => { var folder = Save(); status.Text = "Saved: " + Path.GetFileName(folder); })));
+            actions.Controls.Add(Button("Save as New Wallpaper", () => Run(() => { var folder = Save(true); status.Text = "Saved new wallpaper: " + Path.GetFileName(folder); })));
             actions.Controls.Add(Button("Apply Wallpaper", () => Run(Apply)));
             layout.Controls.Add(actions, 0, 3);
             status.Dock = DockStyle.Fill;
@@ -198,6 +200,7 @@ namespace ScreenSpan
             original = null;
             comparing = false;
             state = new EditState();
+            editingProject = null;
             history.Clear();
             RefreshImage();
             ShowEditor();
@@ -258,6 +261,7 @@ namespace ScreenSpan
             using (bitmap)
             {
                 Push();
+                editingProject = null;
                 state = new EditState { ImagePath = Project.Cache(bitmap), Name = paths.Length == 1 ? Path.GetFileName(paths[0]) : "Combined Wallpaper.png" };
                 original = state.Copy();
                 comparing = false;
@@ -297,12 +301,13 @@ namespace ScreenSpan
                 status.Text = "Edges faded to black. Undo restores the previous image.";
             }
         }
-        string Save()
+        string Save(bool asNew = false)
         {
             EnsureEditable();
             if (preview.Image == null)
                 throw new InvalidOperationException("Choose an image first.");
-            return Project.Save(state, preview.Monitors);
+            editingProject = Project.Save(state, preview.Monitors, updating: asNew ? null : editingProject, asNew: asNew);
+            return editingProject;
         }
         void Apply()
         {
@@ -324,6 +329,7 @@ namespace ScreenSpan
             }
             Push();
             state = loaded;
+            editingProject = path;
             original = state.Copy();
             comparing = false;
             RefreshImage();

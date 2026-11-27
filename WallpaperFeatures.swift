@@ -15,7 +15,7 @@ extension WallpaperState {
             let entries = try store.entries(index: index)
             libraryIndex = index
             libraryEntries = entries
-            if selectedLibraryID == nil { selectedLibraryID = entries.first?.id }
+            if !entries.contains(where: { $0.id == selectedLibraryID }) { selectedLibraryID = entries.first?.id }
             if let profile = index.setups[WallpaperDesign.setupKey(displays)] { setupName = profile.name }
         } catch { featureError = "Couldn’t read the wallpaper library. \(error.localizedDescription)" }
     }
@@ -221,7 +221,7 @@ struct WallpaperLibraryView: View {
                     Spacer()
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
                 } else {
-                    Text("Save a wallpaper project to build your library.").foregroundStyle(.secondary)
+                    Text("Save a wallpaper to build your library.").foregroundStyle(.secondary)
                     Spacer()
                 }
                 HStack {

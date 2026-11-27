@@ -60,6 +60,25 @@ namespace ScreenSpan
                     using (var check = Project.Load(reopened.ImagePath))
                         Check(check.Width == 400 && check.Height == 100, "format 2 source dimensions", lines);
                     Check(new[] { "Wallpaper.png", "Thumbnail.png", "Displays/Display-1.png", "Displays/Display-2.png" }.All(p => File.Exists(Path.Combine(saved, p))), "combined, thumbnail and per-monitor exports", lines);
+                    string updates = Path.Combine(root, "Updates");
+                    string firstUpdate = Project.Save(state, fake, updates);
+                    string firstId = (string)SafeJson.Read(Path.Combine(firstUpdate, "Settings.json"))["wallpaper"]!["id"]!;
+                    var edited = state.Copy(); edited.Frame.Zoom = 1.8;
+                    string sameUpdate = Project.Save(edited, fake, updates, updating: firstUpdate);
+                    Check(sameUpdate == firstUpdate && Project.Open(sameUpdate).Frame.Zoom == 1.8,
+                        "Save Wallpaper updates existing path and settings", lines);
+                    Check((string)SafeJson.Read(Path.Combine(sameUpdate, "Settings.json"))["wallpaper"]!["id"]! == firstId,
+                        "Save Wallpaper preserves library identity", lines);
+                    var brokenUpdate = edited.Copy(); brokenUpdate.ImagePath = Path.Combine(root, "missing-source.png");
+                    bool updateFailed = false;
+                    try { Project.Save(brokenUpdate, fake, updates, updating: firstUpdate); } catch { updateFailed = true; }
+                    Check(updateFailed && Project.Open(firstUpdate).Frame.Zoom == 1.8,
+                        "failed update preserves existing wallpaper", lines);
+                    string newCopy = Project.Save(edited, fake, updates, asNew: true);
+                    Check(newCopy != sameUpdate && new LibraryStore(updates).Entries().Select(e => e.Title).Distinct().Count() == 2,
+                        "Save as New keeps distinct identity and visible name", lines);
+                    Check(Project.Save(Project.Open(newCopy), fake, updates, updating: newCopy) == newCopy,
+                        "Saving copy does not merge another identical item", lines);
                     using (var green = new Bitmap(100, 100))
                     {
                         using (var g = Graphics.FromImage(green))

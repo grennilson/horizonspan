@@ -71,11 +71,17 @@ namespace ScreenSpan
                         continue;
                     id = parsed.ToString().ToUpperInvariant();
                     var details = index.entries.FirstOrDefault(p => string.Equals(p.Key, id, StringComparison.OrdinalIgnoreCase)).Value;
-                    result.Add(new LibraryEntry { Id = id, Folder = folder, Title = details?.title ?? Path.GetFileNameWithoutExtension((string?)json["wallpaper"]?["filename"] ?? "Wallpaper"), Favorite = details?.favorite ?? false });
+                    result.Add(new LibraryEntry { Id = id, Folder = folder, Title = details?.title ?? (string?)json["title"] ?? Path.GetFileNameWithoutExtension((string?)json["wallpaper"]?["filename"] ?? "Wallpaper"), Favorite = details?.favorite ?? false });
                 }
                 catch (IOException) { }
                 catch (JsonException) { }
                 catch (ArgumentException) { }
+            }
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in result.AsEnumerable().Reverse())
+            {
+                string original = entry.Title; int number = 2;
+                while (!used.Add(entry.Title)) entry.Title = original + " (" + number++ + ")";
             }
             return result;
         }

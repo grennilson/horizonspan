@@ -231,6 +231,7 @@ final class WallpaperState: ObservableObject {
     @Published var showDesignOptions = false
     @Published var libraryEntries: [LibraryEntry] = []
     @Published var libraryIndex = LibraryIndex()
+    var editingProject: URL?
     @Published var selectedLibraryID: UUID?
     @Published var libraryTitle = ""
     @Published var setupName = "My Desk"
@@ -347,6 +348,7 @@ final class WallpaperState: ObservableObject {
                     try arrangement.combine(images)
                 }.value
                 source = result
+                editingProject = nil
                 design = .standard
                 groupImages = [:]
                 original = nil
@@ -375,6 +377,7 @@ final class WallpaperState: ObservableObject {
             let loaded = try project?.0 ?? SourceImage(url: url)
             let assets = try project.map { try WallpaperProject.assets(at: url, settings: $0.1) } ?? [:]
             source = loaded
+            editingProject = project == nil ? nil : url
             design = project?.1.design ?? .standard
             groupImages = assets
             original = nil
@@ -493,29 +496,39 @@ final class WallpaperState: ObservableObject {
         let targets = Display.connected()
         guard !targets.isEmpty else { throw WallpaperError.displays }
         let preferredID = saved?.id
-        let (selection, urls) = try await Task.detached(priority: .userInitiated) {
+        let target = editingProject
+        let (selection, urls, projectURL) = try await Task.detached(priority: .userInitiated) {
             var selection = wallpaper
+            var projectURL: URL?
             if archive {
                 let url = try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets,
-                    assets: assets, preferredID: preferredID)
+                    assets: assets, preferredID: preferredID, updating: target)
                 selection = try WallpaperProject.manifest(at: url).wallpaper
+                projectURL = url
             }
             try store.store(source.image, as: selection, assets: assets)
-            return (selection, try store.render(source.image, wallpaper: selection, displays: targets, assets: assets))
+            return (selection, try store.render(source.image, wallpaper: selection, displays: targets, assets: assets), projectURL)
         }.value
         try assign(urls, to: targets, skipMatching: false) {
             do { try store.select(selection) } catch { throw WallpaperError.save }
         }
         saved = selection
+        if archive { editingProject = projectURL }
+        refreshLibrary()
         status = "Applied to \(targets.count) \(targets.count == 1 ? "display" : "displays")"
     }
 
-    func saveProject() {
+    func saveProject() { saveWallpaper(asNew: false) }
+
+    func saveNewWallpaper() { saveWallpaper(asNew: true) }
+
+    func saveWallpaper(asNew: Bool) {
         guard let source, !isBusy, !showOriginal, !displays.isEmpty, cropRect == nil else { return }
         let wallpaper = SavedWallpaper(source: source, framing: framing, zoom: zoom, pan: pan, design: currentDesign)
         let targets = displays
         let assets = groupImages
         let preferredID = saved?.id
+        let target = asNew ? nil : editingProject
         isApplying = true
         status = "Saving wallpaper…"
         Task {
@@ -523,8 +536,9 @@ final class WallpaperState: ObservableObject {
             do {
                 let url = try await Task.detached(priority: .userInitiated) {
                     try WallpaperProject.save(source: source, wallpaper: wallpaper, displays: targets,
-                        assets: assets, preferredID: preferredID)
+                        assets: assets, preferredID: preferredID, updating: target, asNew: asNew)
                 }.value
+                editingProject = url
                 refreshLibrary()
                 status = "Saved in Pictures"
                 NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -822,7 +836,10 @@ struct WallpaperView: View {
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Text(model.status).font(.callout).foregroundStyle(.secondary).lineLimit(1)
-                Button("Save Wallpaper", action: model.saveProject)
+                Menu {
+                    Button("Save Wallpaper", action: model.saveProject)
+                    Button("Save as New Wallpaper", action: model.saveNewWallpaper)
+                } label: { Text("Save Wallpaper") } primaryAction: { model.saveProject() }
                     .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
                 Button("Apply Wallpaper", action: model.apply).buttonStyle(.borderedProminent)
                     .disabled(model.source == nil || displays.isEmpty || model.isBusy || model.showOriginal || model.cropRect != nil)
@@ -1131,6 +1148,9 @@ struct WallpaperCommands: Commands {
         CommandGroup(after: .newItem) {
             Button("Save Wallpaper", action: model.saveProject)
                 .keyboardShortcut("s")
+                .disabled(model.source == nil || model.isBusy || model.showOriginal || model.displays.isEmpty || model.cropRect != nil)
+            Button("Save as New Wallpaper", action: model.saveNewWallpaper)
+                .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(model.source == nil || model.isBusy || model.showOriginal || model.displays.isEmpty || model.cropRect != nil)
             Button("Wallpaper Library…") { openWindow(id: "library") }
         }

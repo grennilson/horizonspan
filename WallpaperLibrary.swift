@@ -57,16 +57,25 @@ struct WallpaperLibraryStore {
     func entries(index: LibraryIndex) throws -> [LibraryEntry] {
         let urls = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.creationDateKey],
                                                                options: [.skipsHiddenFiles])
-        return urls.filter { $0.pathExtension.lowercased() == "ssw" }.compactMap { url in
+        var result: [LibraryEntry] = urls.filter { $0.pathExtension.lowercased() == "ssw" }.compactMap { url in
             guard let data = try? Data(contentsOf: url.appendingPathComponent("Settings.json")),
                   let project = try? JSONDecoder().decode(WallpaperProject.self, from: data),
                   (1...2).contains(project.formatVersion), project.wallpaper.design?.isValid ?? true else { return nil }
             let id = project.wallpaper.id
             let details = index.entries[id.uuidString]
-            let title = details?.title ?? URL(fileURLWithPath: project.wallpaper.filename).deletingPathExtension().lastPathComponent
+            let title = details?.title ?? project.title ?? URL(fileURLWithPath: project.wallpaper.filename).deletingPathExtension().lastPathComponent
             let date = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
             return LibraryEntry(id: id, url: url, title: title, favorite: details?.favorite ?? false, date: date)
-        }.sorted { $0.date > $1.date }
+        }.sorted { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date }
+        var used = Set<String>()
+        for i in result.indices {
+            let base = result[i].title
+            var title = base, number = 2
+            while used.contains(title.lowercased()) { title = "\(base) (\(number))"; number += 1 }
+            result[i].title = title
+            used.insert(title.lowercased())
+        }
+        return result.reversed()
     }
 }
 

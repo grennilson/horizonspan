@@ -114,6 +114,40 @@ import UniformTypeIdentifiers
         let reopenedSave = try WallpaperProject.save(source: reopenedForSave.0, wallpaper: reopenedForSave.1,
             displays: displays, library: libraryRoot, assets: WallpaperProject.assets(at: project, settings: reopenedForSave.1))
         check(reopenedSave.resolvingSymlinksInPath() == project.resolvingSymlinksInPath(), "Reopening and saving an unchanged wallpaper must not duplicate it")
+        let updates = folder.appendingPathComponent("Updates")
+        let first = try WallpaperProject.save(source: source, wallpaper: legacy, displays: displays, library: updates)
+        let changed = SavedWallpaper(source: source, framing: .fit, zoom: 1.5, pan: .zero)
+        let updated = try WallpaperProject.save(source: source, wallpaper: changed, displays: displays, library: updates, updating: first)
+        check(updated.resolvingSymlinksInPath() == first.resolvingSymlinksInPath(), "Save Wallpaper must update the same path")
+        let updatedManifest = try WallpaperProject.manifest(at: updated)
+        check(updatedManifest.wallpaper.id == legacy.id && updatedManifest.wallpaper.zoom == 1.5,
+              "Updates must preserve identity and replace settings")
+        check(updatedManifest.wallpaper.revision != nil, "Changed content must invalidate the restoration cache")
+        let copy = try WallpaperProject.save(source: source, wallpaper: changed, displays: displays, library: updates, asNew: true)
+        check(tryManifestID(copy) != legacy.id, "Save as New must have its own identity")
+        let titles = try WallpaperLibraryStore(root: updates).entries(index: LibraryIndex()).map(\.title)
+        check(Set(titles).count == 2 && titles.contains("Test Panorama (2)"), "Copies must have distinct visible names")
+        let reopenedCopy = try WallpaperProject.open(copy)
+        let updatedCopy = try WallpaperProject.save(source: reopenedCopy.0, wallpaper: reopenedCopy.1, displays: displays, library: updates, updating: copy)
+        check(updatedCopy.resolvingSymlinksInPath() == copy.resolvingSymlinksInPath(), "Unchanged copy updates must not merge into another item")
+        let preservedData = try Data(contentsOf: updated.appendingPathComponent("Image.png"))
+        var failedUpdate = false
+        do {
+            _ = try WallpaperProject.save(source: source, wallpaper: groups, displays: displays,
+                library: updates, assets: [:], updating: updated)
+        } catch { failedUpdate = true }
+        let afterFailure = try Data(contentsOf: updated.appendingPathComponent("Image.png"))
+        check(failedUpdate && preservedData == afterFailure && tryManifestID(updated) == legacy.id,
+              "Failed updates must leave the existing package intact")
+        let revisionStore = WallpaperStore(root: folder.appendingPathComponent("RevisionStore"))
+        try revisionStore.store(input, as: legacy)
+        let beforeRevision = try revisionStore.render(input, wallpaper: legacy, displays: displays)
+        let revisionPixels = image(80,20,color:green)
+        try revisionStore.store(revisionPixels, as: updatedManifest.wallpaper)
+        let afterRevision = try revisionStore.render(revisionPixels, wallpaper: updatedManifest.wallpaper, displays: displays)
+        let revisedSource = try SourceImage(url: afterRevision[0])
+        check(beforeRevision != afterRevision && rgb(revisedSource.image)[1] > 250,
+              "Updating a wallpaper must render the new pixels instead of returning stale cache")
         let dedupeLibrary = folder.appendingPathComponent("Dedupe")
         let originalSave = try WallpaperProject.save(source: source, wallpaper: legacy, displays: displays, library: dedupeLibrary)
         let changedFraming = SavedWallpaper(source: source, framing: .fit, zoom: 1.4, pan: .zero)
@@ -258,7 +292,7 @@ import UniformTypeIdentifiers
         print("PASS — project portability, legacy projects, restore cache, thumbnails, library metadata and monitor profiles")
         print("PASS — numeric update versions, crop undo/redo and rotation deadlines")
         print("PASS — stable monitor identities after reboot, damaged cache recovery, delayed startup retries and cancellation")
-        print("PASS — Save/Apply reuse, reopened wallpaper reuse, and distinct versions for changed images/framing/groups")
+        print("PASS — Save/Apply reuse, update in place with stable identity, explicit new copies with distinct names, and cache revision recovery")
     }
 
     static func tryAssets(_ url: URL, settings: SavedWallpaper) -> Int { (try? WallpaperProject.assets(at: url, settings: settings).count) ?? -1 }

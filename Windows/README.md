@@ -1,15 +1,15 @@
-# ScreenSpan Wallpaper for Windows 1.0.4
+# ScreenSpan Wallpaper for Windows 1.0.5
 
-Version 1.0.4 reuses unchanged saved wallpapers, renames Save Project to Save Wallpaper, and retries automatic restoration during sign-in and display changes. It retains the Spectrum app icon and window activation fixes.
+Version 1.0.5 updates the wallpaper open in the editor when saving. Save as New Wallpaper creates a separate, distinctly named copy. Existing same-name entries receive distinct library labels. Startup restoration and window activation fixes are retained.
 
 Create desktop wallpapers for one, two, three, four or more monitors. The app follows the arrangement reported by Windows and renders a separate image at each display's resolution.
 
 ## Install or run
 
-Download from the [Windows 1.0.4 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.4):
+Download from the [Windows 1.0.5 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.5):
 
-- **ScreenSpan-Wallpaper-Windows-Setup-1.0.4.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
-- **ScreenSpan-Wallpaper-Windows-1.0.4.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
+- **ScreenSpan-Wallpaper-Windows-Setup-1.0.5.exe** installs for your Windows account, with Desktop and Start menu shortcuts. No administrator access is needed. Updates keep saved pictures and preferences.
+- **ScreenSpan-Wallpaper-Windows-1.0.5.exe** is the standalone application. It embeds its application dependencies; neighboring DLL files are not needed.
 - The portable ZIP includes the application and documentation.
 
 Requires Windows 10 or Windows 11, 64-bit, with .NET Framework 4.8 or newer. Windows 11 includes it. If Windows 10 reports a missing framework, install [.NET Framework 4.8 from Microsoft](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48). The executables are unsigned; Windows may show an unknown-publisher message. SHA-256 checksums are included with the release.
@@ -58,7 +58,7 @@ Settings selects CPU or NVIDIA CUDA processing. CPU detail enhancement works on 
 
 ## Saved projects and portability
 
-**Save Wallpaper** and **Apply Wallpaper** save `.ssw` wallpaper packages under **Pictures/ScreenSpan Wallpaper**. An unchanged image, framing, design and display layout reuse an existing package, including older packages. Saving then applying therefore creates one library entry. Changed settings or image pixels create a separate version. Existing duplicates are not removed automatically. Each package includes:
+**Save Wallpaper** and **Apply Wallpaper** save `.ssw` wallpaper packages under **Pictures/ScreenSpan Wallpaper**. Save Wallpaper and Apply Wallpaper update the item open in the editor after its first save. Save as New Wallpaper creates a separate copy with a distinct name, even if its content is unchanged. Importing a different image starts a new wallpaper. Existing same-name entries receive distinct library labels without deleting files. Each package includes:
 
 - `Settings.json`: framing, zoom, position, display groups, alignment and appearance.
 - `Image.png`: the current edited source.

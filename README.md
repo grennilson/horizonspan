@@ -4,8 +4,8 @@ ScreenSpan Wallpaper creates desktop wallpapers across multiple displays, with n
 
 ## Downloads
 
-- **Windows 10/11, 64-bit:** [Windows 1.0.4 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.4). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
-- **macOS 13 or newer:** [Mac 1.4.3 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.3). Download the DMG. The Mac version supports Apple Silicon and Intel.
+- **Windows 10/11, 64-bit:** [Windows 1.0.5 release](https://github.com/grennilson/horizonspan/releases/tag/windows-v1.0.5). Choose the setup EXE to install, or the standalone EXE to run without installation. See the [Windows guide](Windows/README.md), [validation results](Windows/TESTING.md) and [third-party notices](Windows/THIRD-PARTY-NOTICES.md).
+- **macOS 13 or newer:** [Mac 1.4.4 release](https://github.com/grennilson/horizonspan/releases/tag/v1.4.4). Download the DMG. The Mac version supports Apple Silicon and Intel.
 
 Windows code and its build script live in `Windows/`. The Swift files and build scripts at the repository root are the Mac application. Windows and Mac have separate version tags and downloads; a Windows release does not replace the Mac latest-release link.
 
@@ -13,7 +13,7 @@ The following sections describe the Mac application. The Windows guide explains 
 
 ## Install on macOS
 
-These instructions cover ScreenSpan Wallpaper 1.4.3.
+These instructions cover ScreenSpan Wallpaper 1.4.4.
 
 Mac 1.4.1 and Windows 1.0.3 use the new Spectrum app icon: two white monitors with a continuous colorful wallpaper. The Mac icon includes Retina sizes, and the Windows application and installer include icon sizes from 16 to 256 pixels. To regenerate the Windows icon from the shared `AppIcon.png` on a Mac, run `python3 Tools/build_windows_icon.py`.
 
@@ -60,7 +60,7 @@ Images are initially sorted by filename using natural number order. Each image k
 
 ## Saved wallpaper projects
 
-**Apply Wallpaper** automatically saves in **Pictures/ScreenSpan Wallpaper**. Use **Save Wallpaper** (Command–S) to save your current edit without changing the desktop. Saving and then applying an unchanged wallpaper reuses the same library entry. Repeated saves and reopening an unchanged wallpaper also reuse it, including older projects. Changing the image, framing, display layout, appearance or group images saves a separate version. Existing duplicate copies are not deleted automatically.
+**Apply Wallpaper** automatically saves in **Pictures/ScreenSpan Wallpaper**. Use **Save Wallpaper** (Command–S) to save your current edit without changing the desktop. After its first save, Save Wallpaper updates the wallpaper open in the editor, including changes to its image, crop, framing, display layout, appearance or group images. Apply Wallpaper updates that same entry too. Use **Save as New Wallpaper** (Command–Shift–S) to keep a separate copy with a distinct name such as “Wallpaper (2)”. Importing a different image starts a new wallpaper and does not replace the last wallpaper applied to the desktop. Existing same-name versions are given distinct library labels; no existing files are removed.
 
 A project has the extension `.ssw` and contains `Image.png` (the imported or AI-edited image), `Wallpaper.png` (the finished wallpaper with the chosen framing), `Displays/` (one PNG per monitor), and `Settings.json` (format version, framing, zoom, position, and display layout). The finished combined wallpaper is limited to 64 megapixels. The per-monitor PNGs retain each monitor’s output resolution.
 

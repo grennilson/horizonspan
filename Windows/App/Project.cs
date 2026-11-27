@@ -63,20 +63,20 @@ namespace ScreenSpan
             }
             return result;
         }
-        public static string Save(EditState state, IReadOnlyList<Monitor> monitors, string? library = null)
+        public static string Save(EditState state, IReadOnlyList<Monitor> monitors, string? library = null, string? updating = null, bool asNew = false)
         {
             state.Design.Validate();
-            library = library ?? Library;
+            library = library ?? (updating != null ? Path.GetDirectoryName(updating) : null) ?? Library;
             Directory.CreateDirectory(library);
             var displays = new JArray(monitors.Select(m => new JObject { ["name"] = m.Name, ["frame"] = new JArray(new JArray(m.Bounds.X, -m.Bounds.Bottom), new JArray(m.Bounds.Width, m.Bounds.Height)), ["pixelWidth"] = (int)m.Bounds.Width, ["pixelHeight"] = (int)m.Bounds.Height }));
             string fingerprint = WallpaperFingerprint.Of(state, displays);
-            foreach (string candidate in Directory.GetDirectories(library, "*.ssw").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+            foreach (string candidate in Directory.GetDirectories(library, "*.ssw").OrderBy(p => p, StringComparer.OrdinalIgnoreCase).Where(p => !asNew && (updating == null || string.Equals(Path.GetFullPath(p), Path.GetFullPath(updating), StringComparison.OrdinalIgnoreCase))))
             {
                 try
                 {
                     var manifest = SafeJson.Read(Path.Combine(candidate, "Settings.json"));
-                    string? previous = (string?)manifest["contentFingerprint"];
-                    if (previous != null && previous != fingerprint) continue;
+                    string? previousFingerprint = (string?)manifest["contentFingerprint"];
+                    if (previousFingerprint != null && previousFingerprint != fingerprint) continue;
                     if (!JToken.DeepEquals(manifest["displays"], displays)) continue;
                     if (!new[] { "Wallpaper.png", "Thumbnail.png" }.Concat(Enumerable.Range(1, monitors.Count).Select(i => "Displays/Display-" + i + ".png")).All(p => File.Exists(Path.Combine(candidate, p)))) continue;
                     if (WallpaperFingerprint.Of(Open(candidate), displays) == fingerprint)
@@ -84,7 +84,8 @@ namespace ScreenSpan
                 }
                 catch (Exception error) when (error is IOException || error is ArgumentException || error is Newtonsoft.Json.JsonException || error is System.Runtime.InteropServices.ExternalException) { }
             }
-            string id = Guid.NewGuid().ToString().ToUpperInvariant();
+            var previous = updating != null ? SafeJson.Read(Path.Combine(updating, "Settings.json")) : null;
+            string id = previous != null ? (string)previous["wallpaper"]!["id"]! : Guid.NewGuid().ToString().ToUpperInvariant();
             string name = Path.GetFileNameWithoutExtension(state.Name);
             foreach (char c in Path.GetInvalidFileNameChars())
                 name = name.Replace(c, '_');
@@ -92,7 +93,11 @@ namespace ScreenSpan
                 name = name.Substring(0, 80);
             if (name.Length == 0)
                 name = "Wallpaper";
-            string output = Path.Combine(library, name + " - " + id + ".ssw"), temp = Path.Combine(library, "." + Guid.NewGuid());
+            var entries = new LibraryStore(library).Entries();
+            string baseTitle = (string?)previous?["title"] ?? entries.FirstOrDefault(e => e.Id == id)?.Title ?? name;
+            string title = baseTitle; int number = 2;
+            if (updating == null) while (entries.Any(e => string.Equals(e.Title, title, StringComparison.OrdinalIgnoreCase))) title = baseTitle + " (" + number++ + ")";
+            string output = updating ?? Path.Combine(library, name + " - " + id + ".ssw"), temp = Path.Combine(library, "." + Guid.NewGuid());
             Directory.CreateDirectory(temp);
             try
             {
@@ -113,9 +118,18 @@ namespace ScreenSpan
                     using (var thumb = rendered.Combined(240000))
                         thumb.Save(Path.Combine(temp, "Thumbnail.png"), ImageFormat.Png);
                 }
-                var settings = new JObject { ["formatVersion"] = 2, ["contentFingerprint"] = fingerprint, ["wallpaper"] = new JObject { ["id"] = id, ["filename"] = state.Name, ["framing"] = state.Frame.Mode, ["zoom"] = state.Frame.Zoom, ["pan"] = new JArray(state.Frame.PanX, state.Frame.PanY), ["design"] = JObject.FromObject(design) }, ["displays"] = displays };
+                var settings = new JObject { ["formatVersion"] = 2, ["contentFingerprint"] = fingerprint, ["title"] = title, ["wallpaper"] = new JObject { ["id"] = id, ["filename"] = state.Name, ["framing"] = state.Frame.Mode, ["zoom"] = state.Frame.Zoom, ["pan"] = new JArray(state.Frame.PanX, state.Frame.PanY), ["design"] = JObject.FromObject(design) }, ["displays"] = displays };
                 File.WriteAllText(Path.Combine(temp, "Settings.json"), settings.ToString());
-                Directory.Move(temp, output);
+                if (updating != null)
+                {
+                    string backup = Path.Combine(library, ".backup-" + Guid.NewGuid());
+                    Directory.Move(output, backup);
+                    try { Directory.Move(temp, output); }
+                    catch { Directory.Move(backup, output); throw; }
+                    // A failed cleanup must not report a completed save as failed.
+                    try { Directory.Delete(backup, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                }
+                else Directory.Move(temp, output);
                 return output;
             }
             finally { if (Directory.Exists(temp)) Directory.Delete(temp, true); }

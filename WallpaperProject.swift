@@ -20,6 +20,7 @@ struct WallpaperProject: Codable {
     let wallpaper: SavedWallpaper
     let displays: [Screen]
     var contentFingerprint: String? = nil
+    var title: String? = nil
 
     private struct Content: Encodable {
         let filename: String
@@ -75,9 +76,9 @@ struct WallpaperProject: Codable {
     }
 
     static func save(source: SourceImage, wallpaper: SavedWallpaper, displays: [Display],
-                     library: URL? = nil, assets: [Int: SourceImage] = [:], preferredID: UUID? = nil) throws -> URL {
+                     library: URL? = nil, assets: [Int: SourceImage] = [:], preferredID: UUID? = nil, updating target: URL? = nil, asNew: Bool = false) throws -> URL {
         guard !displays.isEmpty else { throw WallpaperError.displays }
-        let library = try library ?? self.library()
+        let library = try library ?? target?.deletingLastPathComponent() ?? self.library()
         let files = FileManager.default
         try files.createDirectory(at: library, withIntermediateDirectories: true)
         let screens = displays.map { Screen(name: $0.name, frame: $0.frame, pixelWidth: $0.pixelWidth, pixelHeight: $0.pixelHeight) }
@@ -89,7 +90,7 @@ struct WallpaperProject: Codable {
                 let second = (try? manifest(at: $1).wallpaper.id) == preferredID
                 return first != second ? first : $0.lastPathComponent < $1.lastPathComponent
             }
-        for candidate in candidates {
+        for candidate in candidates where !asNew && (target == nil || candidate.resolvingSymlinksInPath() == target!.resolvingSymlinksInPath()) {
             guard let project = try? manifest(at: candidate), (1...2).contains(project.formatVersion),
                   project.contentFingerprint == nil || project.contentFingerprint == contentKey,
                   (try? description(wallpaper: project.wallpaper, displays: project.displays)) == wantedDescription,
@@ -103,18 +104,29 @@ struct WallpaperProject: Codable {
         }
         let stem = URL(fileURLWithPath: source.filename).deletingPathExtension().lastPathComponent
         let name = String((stem.isEmpty ? "Wallpaper" : stem).prefix(100))
-        var selection = wallpaper
-        var output = library.appendingPathComponent("\(name) - \(selection.id.uuidString).ssw", isDirectory: true)
-        if files.fileExists(atPath: output.path) {
-            selection = SavedWallpaper(source: source, framing: wallpaper.framing, zoom: wallpaper.zoom,
-                                       pan: wallpaper.pan, design: wallpaper.design)
+        let previous = try target.map { try manifest(at: $0) }
+        var selection = previous.map { SavedWallpaper(source: source, framing: wallpaper.framing,
+            zoom: wallpaper.zoom, pan: wallpaper.pan, design: wallpaper.design,
+            id: $0.wallpaper.id, revision: UUID()) } ?? wallpaper
+        var output = target ?? library.appendingPathComponent("\(name) - \(selection.id.uuidString).ssw", isDirectory: true)
+        if target == nil && files.fileExists(atPath: output.path) {
+            selection = SavedWallpaper(source: source, framing: wallpaper.framing, zoom: wallpaper.zoom, pan: wallpaper.pan, design: wallpaper.design)
             output = library.appendingPathComponent("\(name) - \(selection.id.uuidString).ssw", isDirectory: true)
+        }
+        // Titles are stored in the package so copying it preserves its visible name.
+        let entries = try WallpaperLibraryStore(root: library).entries(index: WallpaperLibraryStore(root: library).index())
+        let baseTitle = previous?.title ?? entries.first(where: { $0.id == previous?.wallpaper.id })?.title ?? name
+        var title = baseTitle
+        if target == nil {
+            var number = 2
+            let titles = Set(entries.map { $0.title.lowercased() })
+            while titles.contains(title.lowercased()) { title = "\(baseTitle) (\(number))"; number += 1 }
         }
         let staging = library.appendingPathComponent(".\(UUID().uuidString)", isDirectory: true)
         try files.createDirectory(at: staging, withIntermediateDirectories: false)
         defer { try? files.removeItem(at: staging) }
 
-        let project = WallpaperProject(formatVersion: 2, wallpaper: selection, displays: screens, contentFingerprint: contentKey)
+        let project = WallpaperProject(formatVersion: 2, wallpaper: selection, displays: screens, contentFingerprint: contentKey, title: title)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(project).write(to: staging.appendingPathComponent("Settings.json"))
@@ -131,7 +143,11 @@ struct WallpaperProject: Codable {
         for (index, image) in rendered.enumerated() {
             try write(image, to: screensFolder.appendingPathComponent("Display-\(index + 1).png"))
         }
-        try files.moveItem(at: staging, to: output)
+        if target != nil {
+            _ = try files.replaceItemAt(output, withItemAt: staging)
+        } else {
+            try files.moveItem(at: staging, to: output)
+        }
         return output
     }
 

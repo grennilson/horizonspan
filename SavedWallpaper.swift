@@ -5,14 +5,16 @@ import UniformTypeIdentifiers
 
 struct SavedWallpaper: Codable {
     let id: UUID
+    let revision: UUID?
     let filename: String
     let framing: ImageFraming
     let zoom: CGFloat
     let pan: CGSize
     let design: WallpaperDesign?
 
-    init(source: SourceImage, framing: ImageFraming, zoom: CGFloat, pan: CGSize, design: WallpaperDesign? = nil) {
-        id = UUID()
+    init(source: SourceImage, framing: ImageFraming, zoom: CGFloat, pan: CGSize, design: WallpaperDesign? = nil, id: UUID = UUID(), revision: UUID? = nil) {
+        self.id = id
+        self.revision = revision
         filename = source.filename
         self.framing = framing
         self.zoom = zoom
@@ -64,7 +66,7 @@ struct WallpaperStore {
     }
 
     func render(_ image: CGImage, wallpaper: SavedWallpaper, displays: [Display], assets: [Int: SourceImage] = [:]) throws -> [URL] {
-        let geometry = "physical-displays-v2|" + WallpaperDesign.setupKey(displays)
+        let geometry = "physical-displays-v2|" + WallpaperDesign.setupKey(displays) + "|" + (wallpaper.revision?.uuidString ?? "original")
         let folder = directory(for: wallpaper)
         let key = SHA256.hash(data: Data(geometry.utf8)).map { String(format: "%02x", $0) }.joined()
         let output = folder.appendingPathComponent(key, isDirectory: true)
