@@ -1,4 +1,6 @@
-# Windows 1.0.4 validation
+# Windows 1.0.5 validation
+
+November 27, 2026: Windows CI [46033364952](https://github.com/grennilson/horizonspan/actions/runs/46033364952) passed update-in-place, stable identity, Save as New with distinct names, failed-save preservation and existing renderer/editor/layout/installer checks. EXE/ZIP checksums were verified after download. No Gaming/Plex installation or full reboot was performed for 1.0.5.
 
 November 26, 2026: added regression checks for Save/Apply reuse, reopened and legacy wallpaper reuse, changed framing/source/group images, and startup retry recovery, cancellation and disabled settings. The cross-platform suite now contains 30 checks. Windows CI run [45878556528](https://github.com/grennilson/horizonspan/actions/runs/45878556528) passed the 1.0.4 rendering, duplicate-save and installer checks. Both the directly built application and the standalone payload extracted by the installer passed. Release asset SHA-256 values were verified after download. Full machine reboot testing remains outstanding.
 

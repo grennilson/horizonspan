@@ -11,3 +11,15 @@ The installed Mac 1.4.3 app was tested with the user's retained palm-tree packag
 Windows CI run [45878556528](https://github.com/grennilson/horizonspan/actions/runs/45878556528) passed 30 core checks, actual Windows renderer/editor checks and installer extraction checks. Added checks cover unchanged saves, reopening, legacy packages, changed framing, source pixels and group images. Startup schedule checks cover retry after an initial failure, cancellation and disabled restoration. The Windows suite uses temporary files and does not change the test machine's desktop wallpaper.
 
 No complete Mac or Windows reboot was performed during this update. Windows 1.0.4 has not been installed on Gaming or Plex as part of this validation.
+
+## November 27 — Mac 1.4.4 / Windows 1.0.5
+
+The reported same-name entries were distinct crops (3,054 × 859 and 3,056 × 859), not exact duplicates. Both unchanged packages were resaved in an isolated temporary library without creating another package. No original user files were changed by that investigation.
+
+Save Wallpaper and Apply now update the package open in the editor. First save binds an imported draft to its saved package. Importing another image or combining new images starts a new draft. Save as New Wallpaper deliberately creates a separate ID and distinct title, even when pixels/settings are unchanged. The Mac save dropdown and File menu expose it; Command–Shift–S is its Mac shortcut. Windows offers a separate button. Existing same-name entries get distinct visible labels without deleting or merging files. Favorites and monitor setup references retain their IDs on update.
+
+Mac checks passed for stable path/ID on changed settings, explicit copies, distinct titles, saving an identical copy without merging another item, failed saves leaving the existing package intact, and cache revision changes rendering new pixels. Existing renderer, project, crop, restore and library checks passed. Package replacement is staged; no existing package is replaced until rendering/export succeeds.
+
+Mac 1.4.4 was installed and checked through the UI. The two existing crop versions showed distinct names, the save dropdown offered both commands, and saving the selected wallpaper kept the library at five entries. Existing crop files were retained. No desktop wallpaper change or machine reboot was requested during this validation.
+
+Windows CI [46033364952](https://github.com/grennilson/horizonspan/actions/runs/46033364952) passed actual Windows rendering/editor, update-in-place, stable ID, explicit new-copy/name, failed-update preservation, layout and installer extraction checks. Downloaded EXE/ZIP SHA-256 values were verified. Windows 1.0.5 was not installed on Gaming or Plex during this update.
